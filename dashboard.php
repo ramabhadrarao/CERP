@@ -16,6 +16,7 @@ if (!isset($_SESSION['user_id'])) {
 
 // Load configuration and database
 require_once 'config/database.php';
+require_once 'includes/dynamic_menu.php';  // ADD THIS LINE
 
 // Get current page from URL parameter
 $current_page = isset($_GET['page']) ? sanitize_input($_GET['page']) : 'home';
@@ -37,12 +38,13 @@ $allowed_pages = [
     'regulations',
     'academic-years',
     'notifications',
-    'my-courses',      // for students
-    'ward-progress',   // for parents
-    'department',      // for HODs
+    'my-courses',
+    'ward-progress',
+    'department',
     'records',
-    'gender'          // for staff
-
+    'gender',
+    'religion',
+    'menu-management'  // ADD THIS LINE
 ];
 
 // Validate page parameter

@@ -345,6 +345,9 @@
                     case 'gender':
                         include 'pages/gender.php';
                         break;
+                        case 'menu-management':
+    include 'pages/menu-management.php';
+    break;
                     case '403':
                         include 'pages/403.php';
                         break;
