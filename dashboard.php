@@ -40,7 +40,9 @@ $allowed_pages = [
     'my-courses',      // for students
     'ward-progress',   // for parents
     'department',      // for HODs
-    'records'          // for staff
+    'records',
+    'gender'          // for staff
+
 ];
 
 // Validate page parameter
@@ -155,7 +157,8 @@ function check_page_access($page, $user_role, $permissions) {
         'batches' => ['all', 'manage_batches'],
         'regulations' => ['all', 'manage_regulations'],
         'academic-years' => ['all', 'manage_academic_years'],
-        'reports' => ['all', 'view_reports', 'generate_reports']
+        'reports' => ['all', 'view_reports', 'generate_reports'],
+        'gender' => ['all','view_gender']
     ];
     
     if (!isset($page_permissions[$page])) {
@@ -194,6 +197,7 @@ $page_titles = [
     'ward-progress' => 'Ward Progress',
     'department' => 'Department Overview',
     'records' => 'Records Management',
+    'gender'  =>  'Gender Management',
     '403' => 'Access Denied'
 ];
 

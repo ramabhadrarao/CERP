@@ -1,4 +1,4 @@
-<!-- Tabler UI Sidebar Navigation -->
+<!-- Enhanced Tabler UI Sidebar Navigation with Lookup Tables -->
 <div class="navbar-expand-md">
     <div class="collapse navbar-collapse" id="navbar-menu">
         <div class="navbar navbar-light">
@@ -368,7 +368,7 @@
                                     Roles & Permissions
                                 </a>
                                 <div class="dropdown-divider"></div>
-                                <h6 class="dropdown-header">System</h6>
+                                <h6 class="dropdown-header">System Setup</h6>
                                 <a class="dropdown-item" href="dashboard.php?page=settings">
                                     <span class="nav-link-icon d-md-none d-lg-inline-block">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -379,15 +379,90 @@
                                     </span>
                                     System Settings
                                 </a>
-                                <a class="dropdown-item" href="dashboard.php?page=audit">
+                                <div class="dropdown-divider"></div>
+                                <h6 class="dropdown-header">Master Data</h6>
+                                <a class="dropdown-item <?php echo ($current_page === 'gender') ? 'active' : ''; ?>" href="dashboard.php?page=gender">
                                     <span class="nav-link-icon d-md-none d-lg-inline-block">
                                         <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                                             <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                            <path d="M3 12h1m8 -9v1m8 8h1m-9 8v1m-6.4 -15.4l.7 .7m12.1 -.7l-.7 .7m0 11.4l.7 .7m-12.1 -.7l-.7 .7"/>
-                                            <circle cx="12" cy="12" r="3"/>
+                                            <circle cx="12" cy="12" r="4"/>
+                                            <path d="M12 2v2"/>
+                                            <path d="M12 20v2"/>
+                                            <path d="M4.93 4.93l1.41 1.41"/>
+                                            <path d="M17.66 17.66l1.41 1.41"/>
+                                            <path d="M2 12h2"/>
+                                            <path d="M20 12h2"/>
+                                            <path d="M6.34 17.66l-1.41 1.41"/>
+                                            <path d="M19.07 4.93l-1.41 1.41"/>
                                         </svg>
                                     </span>
-                                    Audit Logs
+                                    Gender
+                                </a>
+                                <a class="dropdown-item <?php echo ($current_page === 'blood-groups') ? 'active' : ''; ?>" href="dashboard.php?page=blood-groups">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                            <path d="M12 2c-4.97 0-9 4.03-9 9 0 4.17 2.84 7.67 6.69 8.69L12 22l2.31-2.31C18.16 18.67 21 15.17 21 11c0-4.97-4.03-9-9-9z"/>
+                                        </svg>
+                                    </span>
+                                    Blood Groups
+                                </a>
+                                <a class="dropdown-item <?php echo ($current_page === 'nationality') ? 'active' : ''; ?>" href="dashboard.php?page=nationality">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                            <circle cx="12" cy="12" r="10"/>
+                                            <line x1="2" y1="12" x2="22" y2="12"/>
+                                            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                                        </svg>
+                                    </span>
+                                    Nationality
+                                </a>
+                                <a class="dropdown-item <?php echo ($current_page === 'religion') ? 'active' : ''; ?>" href="dashboard.php?page=religion">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                            <path d="M12 3l4 6l5 -4l-2 10h-14l-2 -10l5 4z"/>
+                                        </svg>
+                                    </span>
+                                    Religion
+                                </a>
+                                <a class="dropdown-item <?php echo ($current_page === 'caste') ? 'active' : ''; ?>" href="dashboard.php?page=caste">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                            <rect x="3" y="3" width="18" height="18" rx="2"/>
+                                            <path d="M9 9h6v6h-6z"/>
+                                            <path d="M9 3v6"/>
+                                            <path d="M15 3v6"/>
+                                            <path d="M9 15v6"/>
+                                            <path d="M15 15v6"/>
+                                        </svg>
+                                    </span>
+                                    Caste
+                                </a>
+                                <a class="dropdown-item <?php echo ($current_page === 'states') ? 'active' : ''; ?>" href="dashboard.php?page=states">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                            <path d="M3 7l6-3l6 3l6-3v13l-6 3l-6-3l-6 3z"/>
+                                            <line x1="9" y1="4" x2="9" y2="16"/>
+                                            <line x1="15" y1="7" x2="15" y2="19"/>
+                                        </svg>
+                                    </span>
+                                    States & Districts
+                                </a>
+                                <a class="dropdown-item <?php echo ($current_page === 'student-types') ? 'active' : ''; ?>" href="dashboard.php?page=student-types">
+                                    <span class="nav-link-icon d-md-none d-lg-inline-block">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-tabler" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                            <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                            <rect x="4" y="4" width="6" height="6" rx="1"/>
+                                            <rect x="14" y="4" width="6" height="6" rx="1"/>
+                                            <rect x="4" y="14" width="6" height="6" rx="1"/>
+                                            <rect x="14" y="14" width="6" height="6" rx="1"/>
+                                        </svg>
+                                    </span>
+                                    Student Types
                                 </a>
                                 <div class="dropdown-divider"></div>
                                 <h6 class="dropdown-header">Development</h6>

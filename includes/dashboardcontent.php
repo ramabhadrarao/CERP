@@ -342,6 +342,9 @@
                     case 'records':
                         include 'pages/records.php';
                         break;
+                    case 'gender':
+                        include 'pages/gender.php';
+                        break;
                     case '403':
                         include 'pages/403.php';
                         break;
