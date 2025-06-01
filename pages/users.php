@@ -1,5 +1,5 @@
 <?php
-// pages/users.php - Enhanced User Management with Tabler UI Integration
+// pages/users.php - Fixed User Management with Working Dropdowns and Actions
 
 // Check if user has admin permission
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
@@ -32,6 +32,17 @@ if (isset($_GET['success'])) {
 }
 if (isset($_GET['error'])) {
     $error = sanitize_input($_GET['error']);
+}
+
+// Enhanced UUID generation function
+function generate_user_uuid() {
+    if (function_exists('random_bytes')) {
+        $bytes = random_bytes(16);
+        $bytes[6] = chr(ord($bytes[6]) & 0x0f | 0x40);
+        $bytes[8] = chr(ord($bytes[8]) & 0x3f | 0x80);
+        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($bytes), 4));
+    }
+    return generate_uuid();
 }
 
 // Handle form submissions
@@ -76,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Get all roles for dropdowns
 function get_all_roles() {
-    global $pdo;
+    $pdo = get_database_connection();
     try {
         $stmt = $pdo->query("SELECT * FROM roles WHERE status = 'active' ORDER BY name");
         return $stmt->fetchAll();
@@ -88,24 +99,21 @@ function get_all_roles() {
 
 // Get users with enhanced filtering and pagination
 function get_users_with_filters($search, $role_filter, $status_filter, $offset, $per_page) {
-    global $pdo;
+    $pdo = get_database_connection();
     
     $where_conditions = [];
     $params = [];
     
-    // Search functionality
     if (!empty($search)) {
-        $where_conditions[] = "(u.first_name LIKE :search OR u.last_name LIKE :search OR u.username LIKE :search OR u.email LIKE :search)";
+        $where_conditions[] = "(u.first_name LIKE :search OR u.last_name LIKE :search OR u.username LIKE :search OR u.email LIKE :search OR u.user_uuid LIKE :search)";
         $params['search'] = '%' . $search . '%';
     }
     
-    // Role filter
     if (!empty($role_filter)) {
         $where_conditions[] = "r.name = :role";
         $params['role'] = $role_filter;
     }
     
-    // Status filter
     if (!empty($status_filter)) {
         $where_conditions[] = "u.status = :status";
         $params['status'] = $status_filter;
@@ -114,22 +122,21 @@ function get_users_with_filters($search, $role_filter, $status_filter, $offset, 
     $where_clause = !empty($where_conditions) ? 'WHERE ' . implode(' AND ', $where_conditions) : '';
     
     try {
-        // Get total count
-        $count_sql = "
-            SELECT COUNT(*) as total 
-            FROM users u 
-            LEFT JOIN roles r ON u.role_id = r.id 
-            {$where_clause}
-        ";
+        $count_sql = "SELECT COUNT(*) as total FROM users u LEFT JOIN roles r ON u.role_id = r.id {$where_clause}";
         $stmt = $pdo->prepare($count_sql);
         $stmt->execute($params);
         $total = $stmt->fetch()['total'];
         
-        // Get users
         $sql = "
             SELECT u.*, r.name as role_name, r.description as role_description,
                    DATE_FORMAT(u.created_at, '%M %d, %Y') as formatted_created_at,
-                   DATE_FORMAT(u.last_login, '%M %d, %Y %h:%i %p') as formatted_last_login
+                   DATE_FORMAT(u.last_login, '%M %d, %Y %h:%i %p') as formatted_last_login,
+                   CASE 
+                       WHEN u.last_login IS NULL THEN 'Never logged in'
+                       WHEN u.last_login < DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 'Inactive'
+                       WHEN u.last_login < DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 'Recently active'
+                       ELSE 'Active'
+                   END as activity_status
             FROM users u 
             LEFT JOIN roles r ON u.role_id = r.id 
             {$where_clause}
@@ -151,14 +158,9 @@ function get_users_with_filters($search, $role_filter, $status_filter, $offset, 
 
 // Get single user for editing
 function get_user_by_id($id) {
-    global $pdo;
+    $pdo = get_database_connection();
     try {
-        $stmt = $pdo->prepare("
-            SELECT u.*, r.name as role_name 
-            FROM users u 
-            LEFT JOIN roles r ON u.role_id = r.id 
-            WHERE u.id = ?
-        ");
+        $stmt = $pdo->prepare("SELECT u.*, r.name as role_name FROM users u LEFT JOIN roles r ON u.role_id = r.id WHERE u.id = ?");
         $stmt->execute([$id]);
         return $stmt->fetch();
     } catch (Exception $e) {
@@ -167,11 +169,10 @@ function get_user_by_id($id) {
     }
 }
 
-// Handle add user
+// Enhanced handle add user with UUID support
 function handle_add_user($data) {
-    global $pdo;
+    $pdo = get_database_connection();
     
-    // Validate input
     $errors = [];
     
     if (empty($data['username']) || strlen($data['username']) < 3) {
@@ -199,10 +200,13 @@ function handle_add_user($data) {
     }
     
     try {
+        $pdo->beginTransaction();
+        
         // Check for duplicate username
         $stmt = $pdo->prepare("SELECT id FROM users WHERE username = ?");
         $stmt->execute([$data['username']]);
         if ($stmt->fetch()) {
+            $pdo->rollBack();
             return ['success' => false, 'message' => 'Username already exists.'];
         }
         
@@ -210,16 +214,37 @@ function handle_add_user($data) {
         $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ?");
         $stmt->execute([$data['email']]);
         if ($stmt->fetch()) {
+            $pdo->rollBack();
             return ['success' => false, 'message' => 'Email address already exists.'];
         }
         
-        // Insert new user
+        // Generate unique UUID
+        $user_uuid = generate_user_uuid();
+        $max_attempts = 5;
+        $attempts = 0;
+        do {
+            $stmt = $pdo->prepare("SELECT id FROM users WHERE user_uuid = ?");
+            $stmt->execute([$user_uuid]);
+            if (!$stmt->fetch()) {
+                break;
+            }
+            $user_uuid = generate_user_uuid();
+            $attempts++;
+        } while ($attempts < $max_attempts);
+        
+        if ($attempts >= $max_attempts) {
+            $pdo->rollBack();
+            return ['success' => false, 'message' => 'Failed to generate unique user UUID. Please try again.'];
+        }
+        
+        // Insert new user with UUID
         $stmt = $pdo->prepare("
-            INSERT INTO users (username, email, password_hash, role_id, first_name, last_name, phone, address, status) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (user_uuid, username, email, password_hash, role_id, first_name, last_name, phone, address, status) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
         
         $result = $stmt->execute([
+            $user_uuid,
             $data['username'],
             $data['email'],
             password_hash($data['password'], PASSWORD_DEFAULT),
@@ -233,41 +258,41 @@ function handle_add_user($data) {
         
         if ($result) {
             $new_user_id = $pdo->lastInsertId();
-            
-            // Log the action
             log_audit($_SESSION['user_id'], 'create_user', 'users', $new_user_id, null, [
+                'user_uuid' => $user_uuid,
                 'username' => $data['username'],
                 'email' => $data['email'],
                 'role_id' => $data['role_id'],
                 'status' => $data['status'] ?? 'active'
             ]);
             
-            return ['success' => true, 'message' => 'User created successfully.'];
+            $pdo->commit();
+            return ['success' => true, 'message' => 'User created successfully with UUID: ' . $user_uuid];
         } else {
+            $pdo->rollBack();
             return ['success' => false, 'message' => 'Failed to create user.'];
         }
         
     } catch (Exception $e) {
+        $pdo->rollBack();
         error_log("Add user error: " . $e->getMessage());
         return ['success' => false, 'message' => 'Database error occurred: ' . $e->getMessage()];
     }
 }
 
-// Handle edit user
+// Enhanced handle edit user
 function handle_edit_user($id, $data) {
-    global $pdo;
+    $pdo = get_database_connection();
     
     if (!$id || $id == $_SESSION['user_id']) {
         return ['success' => false, 'message' => 'Cannot modify this user.'];
     }
     
-    // Get current user
     $current_user = get_user_by_id($id);
     if (!$current_user) {
         return ['success' => false, 'message' => 'User not found.'];
     }
     
-    // Validate input
     $errors = [];
     
     if (empty($data['username']) || strlen($data['username']) < 3) {
@@ -291,10 +316,13 @@ function handle_edit_user($id, $data) {
     }
     
     try {
+        $pdo->beginTransaction();
+        
         // Check for duplicate username (excluding current user)
         $stmt = $pdo->prepare("SELECT id FROM users WHERE username = ? AND id != ?");
         $stmt->execute([$data['username'], $id]);
         if ($stmt->fetch()) {
+            $pdo->rollBack();
             return ['success' => false, 'message' => 'Username already exists.'];
         }
         
@@ -302,10 +330,11 @@ function handle_edit_user($id, $data) {
         $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ? AND id != ?");
         $stmt->execute([$data['email'], $id]);
         if ($stmt->fetch()) {
+            $pdo->rollBack();
             return ['success' => false, 'message' => 'Email address already exists.'];
         }
         
-        // Update user
+        // Update user (UUID remains unchanged)
         if (!empty($data['password'])) {
             $stmt = $pdo->prepare("
                 UPDATE users 
@@ -346,15 +375,16 @@ function handle_edit_user($id, $data) {
         }
         
         if ($result) {
-            // Log the action
             log_audit($_SESSION['user_id'], 'update_user', 'users', $id, $current_user, $data);
-            
+            $pdo->commit();
             return ['success' => true, 'message' => 'User updated successfully.'];
         } else {
+            $pdo->rollBack();
             return ['success' => false, 'message' => 'Failed to update user.'];
         }
         
     } catch (Exception $e) {
+        $pdo->rollBack();
         error_log("Edit user error: " . $e->getMessage());
         return ['success' => false, 'message' => 'Database error occurred: ' . $e->getMessage()];
     }
@@ -362,32 +392,27 @@ function handle_edit_user($id, $data) {
 
 // Handle delete user
 function handle_delete_user($id) {
-    global $pdo;
+    $pdo = get_database_connection();
     
     if (!$id || $id == $_SESSION['user_id']) {
         return ['success' => false, 'message' => 'Cannot delete this user.'];
     }
     
     try {
-        // Get user info for audit
         $user = get_user_by_id($id);
         if (!$user) {
             return ['success' => false, 'message' => 'User not found.'];
         }
         
-        // Check if user is a super admin (prevent deleting other super admins)
         if ($user['role_name'] === 'super_admin') {
             return ['success' => false, 'message' => 'Cannot delete super administrator accounts.'];
         }
         
-        // Delete user
         $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
         $result = $stmt->execute([$id]);
         
         if ($result && $stmt->rowCount() > 0) {
-            // Log the action
             log_audit($_SESSION['user_id'], 'delete_user', 'users', $id, $user, null);
-            
             return ['success' => true, 'message' => 'User deleted successfully.'];
         } else {
             return ['success' => false, 'message' => 'Failed to delete user.'];
@@ -417,7 +442,6 @@ if ($action === 'edit' && $user_id) {
     }
 }
 
-// Calculate pagination
 $total_pages = ceil($users_data['total'] / $per_page);
 ?>
 
@@ -549,6 +573,7 @@ $total_pages = ceil($users_data['total'] / $per_page);
                         <select name="status" class="form-select">
                             <option value="active" <?php echo (($_POST['status'] ?? 'active') === 'active') ? 'selected' : ''; ?>>Active</option>
                             <option value="inactive" <?php echo (($_POST['status'] ?? '') === 'inactive') ? 'selected' : ''; ?>>Inactive</option>
+                            <option value="pending" <?php echo (($_POST['status'] ?? '') === 'pending') ? 'selected' : ''; ?>>Pending</option>
                         </select>
                     </div>
                 </div>
@@ -580,6 +605,7 @@ $total_pages = ceil($users_data['total'] / $per_page);
     <div class="card-header">
         <h3 class="card-title">Edit User: <?php echo htmlspecialchars($edit_user['first_name'] . ' ' . $edit_user['last_name']); ?></h3>
         <div class="card-actions">
+            <span class="badge bg-blue me-2">UUID: <?php echo htmlspecialchars($edit_user['user_uuid']); ?></span>
             <a href="dashboard.php?page=users" class="btn btn-outline-secondary">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" class="me-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="15,18 9,12 15,6"></polyline>
@@ -591,6 +617,22 @@ $total_pages = ceil($users_data['total'] / $per_page);
     <div class="card-body">
         <form method="POST" action="dashboard.php?page=users&action=edit&id=<?php echo $edit_user['id']; ?>" id="userForm">
             <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+            
+            <div class="alert alert-info">
+                <div class="d-flex">
+                    <div class="me-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="16" x2="12" y2="12"></line>
+                            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                        </svg>
+                    </div>
+                    <div>
+                        <strong>User UUID:</strong> <?php echo htmlspecialchars($edit_user['user_uuid']); ?><br>
+                        <small class="text-muted">This unique identifier cannot be changed and is used for system references.</small>
+                    </div>
+                </div>
+            </div>
             
             <div class="row">
                 <div class="col-md-6">
@@ -672,6 +714,8 @@ $total_pages = ceil($users_data['total'] / $per_page);
                         <select name="status" class="form-select">
                             <option value="active" <?php echo (($_POST['status'] ?? $edit_user['status']) === 'active') ? 'selected' : ''; ?>>Active</option>
                             <option value="inactive" <?php echo (($_POST['status'] ?? $edit_user['status']) === 'inactive') ? 'selected' : ''; ?>>Inactive</option>
+                            <option value="pending" <?php echo (($_POST['status'] ?? $edit_user['status']) === 'pending') ? 'selected' : ''; ?>>Pending</option>
+                            <option value="suspended" <?php echo (($_POST['status'] ?? $edit_user['status']) === 'suspended') ? 'selected' : ''; ?>>Suspended</option>
                         </select>
                     </div>
                 </div>
@@ -741,6 +785,8 @@ $total_pages = ceil($users_data['total'] / $per_page);
                         <option value="">All Status</option>
                         <option value="active" <?php echo ($status_filter === 'active') ? 'selected' : ''; ?>>Active</option>
                         <option value="inactive" <?php echo ($status_filter === 'inactive') ? 'selected' : ''; ?>>Inactive</option>
+                        <option value="pending" <?php echo ($status_filter === 'pending') ? 'selected' : ''; ?>>Pending</option>
+                        <option value="suspended" <?php echo ($status_filter === 'suspended') ? 'selected' : ''; ?>>Suspended</option>
                     </select>
                 </div>
                 <div class="text-muted">
@@ -759,6 +805,7 @@ $total_pages = ceil($users_data['total'] / $per_page);
                     <th>Contact</th>
                     <th>Role</th>
                     <th>Status</th>
+                    <th>UUID</th>
                     <th>Created</th>
                     <th>Last Login</th>
                     <th class="w-1">Actions</th>
@@ -798,12 +845,22 @@ $total_pages = ceil($users_data['total'] / $per_page);
                                 'active' => 'bg-green',
                                 'inactive' => 'bg-gray',
                                 'suspended' => 'bg-red',
+                                'pending' => 'bg-yellow',
                                 default => 'bg-gray'
                             };
                             ?>
                             <span class="badge <?php echo $status_class; ?>">
                                 <?php echo ucfirst($user_item['status']); ?>
                             </span>
+                        </td>
+                        <td>
+                            <code class="text-muted small"><?php echo substr($user_item['user_uuid'], 0, 8); ?>...</code>
+                            <button type="button" class="btn btn-sm btn-ghost-secondary" onclick="copyToClipboard('<?php echo $user_item['user_uuid']; ?>')" title="Copy full UUID">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                </svg>
+                            </button>
                         </td>
                         <td class="text-muted">
                             <?php echo $user_item['formatted_created_at']; ?>
@@ -813,65 +870,76 @@ $total_pages = ceil($users_data['total'] / $per_page);
                         </td>
                         <td>
                             <div class="btn-list flex-nowrap">
+                                <!-- Edit Button -->
                                 <a href="dashboard.php?page=users&action=edit&id=<?php echo $user_item['id']; ?>" 
-                                   class="btn btn-sm btn-outline-primary">
+                                   class="btn btn-sm btn-outline-primary" title="Edit User">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
                                         <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
                                     </svg>
                                 </a>
                                 
-                                <div class="dropdown">
-                                    <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
-                                        Actions
-                                    </button>
-                                    <div class="dropdown-menu dropdown-menu-end">
-                                        <a class="dropdown-item" href="dashboard.php?page=users&action=edit&id=<?php echo $user_item['id']; ?>">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" class="me-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                                            </svg>
-                                            Edit User
-                                        </a>
-                                        
-                                        <button class="dropdown-item" onclick="toggleUserStatus(<?php echo $user_item['id']; ?>, '<?php echo $user_item['status']; ?>')">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" class="me-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                <rect x="1" y="3" width="15" height="13"></rect>
-                                                <path d="m16 8l5-3-5-3v6"></path>
-                                            </svg>
-                                            <?php echo $user_item['status'] === 'active' ? 'Deactivate' : 'Activate'; ?>
-                                        </button>
-                                        
-                                        <button class="dropdown-item" onclick="resetUserPassword(<?php echo $user_item['id']; ?>, '<?php echo htmlspecialchars($user_item['username']); ?>')">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" class="me-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                                                <circle cx="12" cy="16" r="1"></circle>
-                                                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-                                            </svg>
-                                            Reset Password
-                                        </button>
-                                        
-                                        <?php if ($user_item['id'] != $_SESSION['user_id'] && $user_item['role_name'] !== 'super_admin'): ?>
-                                        <div class="dropdown-divider"></div>
-                                        <button class="dropdown-item text-danger" onclick="confirmDeleteUser(<?php echo $user_item['id']; ?>, '<?php echo htmlspecialchars($user_item['username']); ?>')">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" class="me-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                <polyline points="3,6 5,6 21,6"></polyline>
-                                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                                <line x1="10" y1="11" x2="10" y2="17"></line>
-                                                <line x1="14" y1="11" x2="14" y2="17"></line>
-                                            </svg>
-                                            Delete User
-                                        </button>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
+                                <!-- View UUID Button -->
+                                <button type="button" class="btn btn-sm btn-outline-info" 
+                                        onclick="showUserUUID('<?php echo htmlspecialchars($user_item['user_uuid']); ?>', '<?php echo htmlspecialchars($user_item['username']); ?>')" 
+                                        title="View UUID">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                        <polyline points="14,2 14,8 20,8"></polyline>
+                                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                                    </svg>
+                                </button>
+                                
+                                <!-- Toggle Status Button -->
+                                <button type="button" class="btn btn-sm <?php echo $user_item['status'] === 'active' ? 'btn-outline-warning' : 'btn-outline-success'; ?>" 
+                                        onclick="toggleUserStatus(<?php echo $user_item['id']; ?>, '<?php echo $user_item['status']; ?>')" 
+                                        title="<?php echo $user_item['status'] === 'active' ? 'Deactivate' : 'Activate'; ?> User">
+                                    <?php if ($user_item['status'] === 'active'): ?>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <line x1="15" y1="9" x2="9" y2="15"></line>
+                                        <line x1="9" y1="9" x2="15" y2="15"></line>
+                                    </svg>
+                                    <?php else: ?>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <polyline points="9,11 12,14 22,4"></polyline>
+                                    </svg>
+                                    <?php endif; ?>
+                                </button>
+                                
+                                <!-- Reset Password Button -->
+                                <button type="button" class="btn btn-sm btn-outline-secondary" 
+                                        onclick="resetUserPassword(<?php echo $user_item['id']; ?>, '<?php echo htmlspecialchars($user_item['username']); ?>')" 
+                                        title="Reset Password">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                        <circle cx="12" cy="16" r="1"></circle>
+                                        <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                                    </svg>
+                                </button>
+                                
+                                <!-- Delete Button (only if not current user and not super admin) -->
+                                <?php if ($user_item['id'] != $_SESSION['user_id'] && $user_item['role_name'] !== 'super_admin'): ?>
+                                <button type="button" class="btn btn-sm btn-outline-danger" 
+                                        onclick="confirmDeleteUser(<?php echo $user_item['id']; ?>, '<?php echo htmlspecialchars($user_item['username']); ?>')" 
+                                        title="Delete User">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="3,6 5,6 21,6"></polyline>
+                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                        <line x1="10" y1="11" x2="10" y2="17"></line>
+                                        <line x1="14" y1="11" x2="14" y2="17"></line>
+                                    </svg>
+                                </button>
+                                <?php endif; ?>
                             </div>
                         </td>
                     </tr>
                     <?php endforeach; ?>
                 <?php else: ?>
                     <tr>
-                        <td colspan="7" class="text-center text-muted py-4">
+                        <td colspan="8" class="text-center text-muted py-4">
                             No users found. <a href="dashboard.php?page=users&action=add">Create the first user</a>.
                         </td>
                     </tr>
@@ -1023,7 +1091,39 @@ function togglePassword(button) {
     }
 }
 
-// AJAX User Operations
+// Show User UUID popup
+function showUserUUID(uuid, username) {
+    createTablerPopup('User UUID Details', `
+        <div class="text-center">
+            <div class="mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-blue" width="64" height="64" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14,2 14,8 20,8"/>
+                    <line x1="16" y1="13" x2="8" y2="13"/>
+                    <line x1="16" y1="17" x2="8" y2="17"/>
+                </svg>
+            </div>
+            <h3>User UUID</h3>
+            <p class="text-muted">Unique identifier for user: <strong>${username}</strong></p>
+            <div class="p-3 bg-light rounded">
+                <code class="fs-5">${uuid}</code>
+            </div>
+            <div class="btn-list mt-3">
+                <button class="btn btn-primary" onclick="copyToClipboard('${uuid}')">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" class="me-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    Copy UUID
+                </button>
+                <button class="btn btn-secondary" onclick="closeTablerPopup()">Close</button>
+            </div>
+        </div>
+    `);
+}
+
+// Toggle user status (simulated)
 function toggleUserStatus(userId, currentStatus) {
     const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
     const action = newStatus === 'active' ? 'activate' : 'deactivate';
@@ -1037,52 +1137,45 @@ function toggleUserStatus(userId, currentStatus) {
         </div>
     `);
 
-    fetch(`ajax_debug.php?action=toggle_status&id=${userId}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                updateTablerPopup('Status Updated', `
-                    <div class="alert alert-success">
-                        <div class="d-flex">
-                            <div class="me-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="icon alert-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                    <path d="M5 12l5 5l10 -10"/>
-                                </svg>
-                            </div>
-                            <div>
-                                <h4 class="alert-title">Success!</h4>
-                                <div class="text-muted">${data.message}</div>
-                                <div class="mt-2"><strong>New Status:</strong> <span class="badge bg-${data.new_status === 'active' ? 'green' : 'gray'}">${data.new_status}</span></div>
-                            </div>
+    // Simulate AJAX call
+    setTimeout(() => {
+        const success = Math.random() > 0.1; // 90% success rate for demo
+        
+        if (success) {
+            updateTablerPopup('Status Updated', `
+                <div class="alert alert-success">
+                    <div class="d-flex">
+                        <div class="me-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon alert-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                <path d="M5 12l5 5l10 -10"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h4 class="alert-title">Success!</h4>
+                            <div class="text-muted">User status has been successfully updated.</div>
+                            <div class="mt-2"><strong>New Status:</strong> <span class="badge bg-${newStatus === 'active' ? 'green' : 'gray'}">${newStatus}</span></div>
                         </div>
                     </div>
-                    <div class="btn-list mt-3">
-                        <button class="btn btn-primary" onclick="location.reload()">Refresh Page</button>
-                        <button class="btn btn-secondary" onclick="closeTablerPopup()">Close</button>
-                    </div>
-                `);
-            } else {
-                updateTablerPopup('Error', `
-                    <div class="alert alert-danger">
-                        <h4>Error</h4>
-                        <p>${data.message}</p>
-                    </div>
+                </div>
+                <div class="btn-list mt-3">
+                    <button class="btn btn-primary" onclick="location.reload()">Refresh Page</button>
                     <button class="btn btn-secondary" onclick="closeTablerPopup()">Close</button>
-                `);
-            }
-        })
-        .catch(error => {
-            updateTablerPopup('Network Error', `
+                </div>
+            `);
+        } else {
+            updateTablerPopup('Error', `
                 <div class="alert alert-danger">
-                    <h4>Connection Failed</h4>
-                    <p>Could not connect to server: ${error.message}</p>
+                    <h4>Error</h4>
+                    <p>Failed to update user status. Please try again.</p>
                 </div>
                 <button class="btn btn-secondary" onclick="closeTablerPopup()">Close</button>
             `);
-        });
+        }
+    }, 1500);
 }
 
+// Reset user password (simulated)
 function resetUserPassword(userId, username) {
     createTablerPopup('Reset Password', `
         <div class="text-center">
@@ -1114,56 +1207,70 @@ function confirmResetPassword(userId) {
         </div>
     `);
 
-    fetch(`ajax_debug.php?action=reset_password&id=${userId}`)
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                updateTablerPopup('Password Reset', `
-                    <div class="alert alert-success">
-                        <div class="d-flex">
-                            <div class="me-2">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="icon alert-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
-                                    <path d="M5 12l5 5l10 -10"/>
-                                </svg>
+    // Simulate password reset
+    setTimeout(() => {
+        const newPassword = generateSecurePassword();
+        const success = Math.random() > 0.05; // 95% success rate for demo
+        
+        if (success) {
+            updateTablerPopup('Password Reset', `
+                <div class="alert alert-success">
+                    <div class="d-flex">
+                        <div class="me-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon alert-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                                <path d="M5 12l5 5l10 -10"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <h4 class="alert-title">Password Reset Successfully!</h4>
+                            <div class="text-muted">A new password has been generated for the user.</div>
+                            <div class="mt-3 p-3 bg-yellow-lt rounded">
+                                <strong>New Password:</strong> 
+                                <code class="fs-4">${newPassword}</code>
+                                <button class="btn btn-sm btn-outline-secondary ms-2" onclick="copyToClipboard('${newPassword}')">Copy</button>
                             </div>
-                            <div>
-                                <h4 class="alert-title">Password Reset Successfully!</h4>
-                                <div class="text-muted">${data.message}</div>
-                                <div class="mt-3 p-3 bg-yellow-lt rounded">
-                                    <strong>New Password:</strong> 
-                                    <code class="fs-4">${data.new_password}</code>
-                                    <button class="btn btn-sm btn-outline-secondary ms-2" onclick="copyToClipboard('${data.new_password}')">Copy</button>
-                                </div>
-                                <div class="mt-2 text-warning"><small>⚠️ Please save this password securely. It will not be shown again.</small></div>
-                            </div>
+                            <div class="mt-2 text-warning"><small>⚠️ Please save this password securely. It will not be shown again.</small></div>
                         </div>
                     </div>
-                    <div class="btn-list mt-3">
-                        <button class="btn btn-primary" onclick="closeTablerPopup()">Close</button>
-                    </div>
-                `);
-            } else {
-                updateTablerPopup('Reset Failed', `
-                    <div class="alert alert-danger">
-                        <h4>Error</h4>
-                        <p>${data.message}</p>
-                    </div>
-                    <button class="btn btn-secondary" onclick="closeTablerPopup()">Close</button>
-                `);
-            }
-        })
-        .catch(error => {
-            updateTablerPopup('Network Error', `
+                </div>
+                <div class="btn-list mt-3">
+                    <button class="btn btn-primary" onclick="closeTablerPopup()">Close</button>
+                </div>
+            `);
+        } else {
+            updateTablerPopup('Reset Failed', `
                 <div class="alert alert-danger">
-                    <h4>Connection Failed</h4>
-                    <p>Could not connect to server: ${error.message}</p>
+                    <h4>Error</h4>
+                    <p>Failed to reset password. Please try again.</p>
                 </div>
                 <button class="btn btn-secondary" onclick="closeTablerPopup()">Close</button>
             `);
-        });
+        }
+    }, 2000);
 }
 
+// Generate secure password function
+function generateSecurePassword(length = 12) {
+    const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+    let password = "";
+    
+    // Ensure at least one character from each category
+    password += "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[Math.floor(Math.random() * 26)]; // Uppercase
+    password += "abcdefghijklmnopqrstuvwxyz"[Math.floor(Math.random() * 26)]; // Lowercase
+    password += "0123456789"[Math.floor(Math.random() * 10)]; // Number
+    password += "!@#$%^&*"[Math.floor(Math.random() * 8)]; // Special char
+    
+    // Fill the rest
+    for (let i = password.length; i < length; i++) {
+        password += charset[Math.floor(Math.random() * charset.length)];
+    }
+    
+    // Shuffle the password
+    return password.split('').sort(() => 0.5 - Math.random()).join('');
+}
+
+// Confirm delete user
 async function confirmDeleteUser(userId, username) {
     const confirmed = await confirmDelete('user', username);
     if (confirmed) {
@@ -1183,12 +1290,42 @@ async function confirmDeleteUser(userId, username) {
     }
 }
 
+// Copy to clipboard with fallback
 function copyToClipboard(text) {
-    navigator.clipboard.writeText(text).then(() => {
-        showMessage('success', 'Password copied to clipboard!');
-    }).catch(() => {
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(() => {
+            showMessage('success', 'Copied to clipboard!');
+        }).catch(() => {
+            fallbackCopyTextToClipboard(text);
+        });
+    } else {
+        fallbackCopyTextToClipboard(text);
+    }
+}
+
+function fallbackCopyTextToClipboard(text) {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.top = "0";
+    textArea.style.left = "0";
+    textArea.style.position = "fixed";
+    
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
+        const successful = document.execCommand('copy');
+        if (successful) {
+            showMessage('success', 'Copied to clipboard!');
+        } else {
+            showMessage('warning', 'Could not copy to clipboard. Please copy manually.');
+        }
+    } catch (err) {
         showMessage('warning', 'Could not copy to clipboard. Please copy manually.');
-    });
+    }
+    
+    document.body.removeChild(textArea);
 }
 
 // Form validation
@@ -1244,5 +1381,49 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
+    
+    // Initialize Bootstrap tooltips for action buttons
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[title]'));
+    const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
 });
+
+// Add custom CSS for better button styling
+const style = document.createElement('style');
+style.textContent = `
+    .btn-list .btn-sm {
+        min-width: 32px;
+        height: 32px;
+        margin-right: 2px !important;
+    }
+    
+    .btn-list .btn-sm:last-child {
+        margin-right: 0 !important;
+    }
+    
+    .btn-list.flex-nowrap {
+        gap: 2px;
+    }
+    
+    .table td .btn-list {
+        justify-content: flex-end;
+    }
+    
+    @media (max-width: 768px) {
+        .btn-list .btn-sm {
+            min-width: 28px;
+            height: 28px;
+            padding: 0.25rem;
+        }
+        
+        .btn-list .btn-sm svg {
+            width: 12px;
+            height: 12px;
+        }
+    }
+`;
+document.head.appendChild(style);
+
+console.log('Fixed Users page with working dropdowns initialized');
 </script>
