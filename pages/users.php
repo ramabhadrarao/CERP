@@ -1,5 +1,5 @@
 <?php
-// pages/users.php - Complete Enhanced User Management System
+// pages/users.php - Fixed User Management System with proper header handling
 
 // Check if user has admin permission
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
@@ -10,11 +10,13 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
     return;
 }
 
-// Get action and parameters
+// Initialize variables
 $action = isset($_GET['action']) ? sanitize_input($_GET['action']) : 'list';
 $user_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+$message = '';
+$error = '';
 
-// Get success/error messages from URL parameters
+// Get success/error messages from URL parameters (for display after redirect)
 if (isset($_GET['success'])) {
     $message = sanitize_input($_GET['success']);
 }
@@ -22,17 +24,21 @@ if (isset($_GET['error'])) {
     $error = sanitize_input($_GET['error']);
 }
 
-// Handle form submissions
+// Handle form submissions and redirects
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!verify_csrf_token($_POST['csrf_token'] ?? '')) {
         $error = 'Invalid request. Please try again.';
     } else {
+        // Process form based on action
+        $redirect_url = '';
+        $redirect_message = '';
+        $redirect_error = '';
+        
         switch ($action) {
             case 'add':
                 $result = handle_add_user($_POST);
                 if ($result['success']) {
-                    header('Location: dashboard.php?page=users&success=' . urlencode($result['message']));
-                    exit;
+                    $redirect_url = 'dashboard.php?page=users&success=' . urlencode($result['message']);
                 } else {
                     $error = $result['message'];
                 }
@@ -41,8 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             case 'edit':
                 $result = handle_edit_user($user_id, $_POST);
                 if ($result['success']) {
-                    header('Location: dashboard.php?page=users&success=' . urlencode($result['message']));
-                    exit;
+                    $redirect_url = 'dashboard.php?page=users&success=' . urlencode($result['message']);
                 } else {
                     $error = $result['message'];
                 }
@@ -51,23 +56,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             case 'delete':
                 $result = handle_delete_user($user_id);
                 if ($result['success']) {
-                    header('Location: dashboard.php?page=users&success=' . urlencode($result['message']));
-                    exit;
+                    $redirect_url = 'dashboard.php?page=users&success=' . urlencode($result['message']);
                 } else {
-                    header('Location: dashboard.php?page=users&error=' . urlencode($result['message']));
-                    exit;
+                    $redirect_url = 'dashboard.php?page=users&error=' . urlencode($result['message']);
                 }
                 break;
                 
             case 'bulk_import':
                 $result = handle_bulk_import_users($_FILES, $_POST);
                 if ($result['success']) {
-                    header('Location: dashboard.php?page=users&success=' . urlencode($result['message']));
-                    exit;
+                    $redirect_url = 'dashboard.php?page=users&success=' . urlencode($result['message']);
                 } else {
                     $error = $result['message'];
                 }
                 break;
+        }
+        
+        // If we have a redirect URL, use JavaScript redirect to avoid header issues
+        if ($redirect_url) {
+            echo '<script type="text/javascript">
+                    window.location.href = "' . htmlspecialchars($redirect_url) . '";
+                  </script>';
+            echo '<noscript>
+                    <meta http-equiv="refresh" content="0;url=' . htmlspecialchars($redirect_url) . '">
+                  </noscript>';
+            return;
         }
     }
 }
@@ -99,7 +112,7 @@ if (isset($_GET['ajax']) && isset($_GET['id'])) {
 
 // Enhanced function to get all users with pagination and search
 function get_all_users($options = []) {
-    global $pdo;
+    $pdo = get_database_connection();
     
     $defaults = [
         'search' => '',
@@ -162,7 +175,7 @@ function get_all_users($options = []) {
 
 // Count total users
 function count_users($options = []) {
-    global $pdo;
+    $pdo = get_database_connection();
     
     $where_conditions = [];
     $params = [];
@@ -201,7 +214,7 @@ function count_users($options = []) {
 
 // Get all roles for dropdowns
 function get_all_roles() {
-    global $pdo;
+    $pdo = get_database_connection();
     try {
         $stmt = $pdo->query("SELECT * FROM roles WHERE status = 'active' ORDER BY name");
         return $stmt->fetchAll();
@@ -213,7 +226,7 @@ function get_all_roles() {
 
 // Get single user for editing
 function get_user_by_id($id) {
-    global $pdo;
+    $pdo = get_database_connection();
     try {
         $stmt = $pdo->prepare("
             SELECT u.*, r.name as role_name 
@@ -231,7 +244,7 @@ function get_user_by_id($id) {
 
 // Enhanced handle add user
 function handle_add_user($data) {
-    global $pdo;
+    $pdo = get_database_connection();
     
     // Validate input
     $errors = [];
@@ -317,7 +330,7 @@ function handle_add_user($data) {
 
 // Enhanced handle edit user
 function handle_edit_user($id, $data) {
-    global $pdo;
+    $pdo = get_database_connection();
     
     if (!$id) {
         return ['success' => false, 'message' => 'Invalid user ID.'];
@@ -409,7 +422,7 @@ function handle_edit_user($id, $data) {
 
 // Enhanced handle delete user
 function handle_delete_user($id) {
-    global $pdo;
+    $pdo = get_database_connection();
     
     if (!$id) {
         return ['success' => false, 'message' => 'Invalid user ID.'];
@@ -463,7 +476,7 @@ function handle_delete_user($id) {
 
 // Toggle user status
 function toggle_user_status($id) {
-    global $pdo;
+    $pdo = get_database_connection();
     
     if (!$id || $id == $_SESSION['user_id']) {
         return ['success' => false, 'message' => 'Cannot modify this user.'];
@@ -498,7 +511,7 @@ function toggle_user_status($id) {
 
 // Reset user password
 function reset_user_password($id) {
-    global $pdo;
+    $pdo = get_database_connection();
     
     if (!$id) {
         return ['success' => false, 'message' => 'Invalid user ID.'];
@@ -526,7 +539,7 @@ function reset_user_password($id) {
 
 // Bulk import users
 function handle_bulk_import_users($files, $data) {
-    global $pdo;
+    $pdo = get_database_connection();
     
     if (!isset($files['bulk_file']) || $files['bulk_file']['error'] !== UPLOAD_ERR_OK) {
         return ['success' => false, 'message' => 'Please select a valid CSV file.'];
@@ -732,7 +745,7 @@ if ($action === 'add' || $action === 'edit' || $action === 'bulk_import') {
 ?>
 
 <!-- Messages -->
-<?php if (isset($message)): ?>
+<?php if ($message): ?>
 <div class="alert alert-success alert-dismissible" role="alert">
     <div class="d-flex">
         <div class="me-2">
@@ -740,13 +753,13 @@ if ($action === 'add' || $action === 'edit' || $action === 'bulk_import') {
                 <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/>
             </svg>
         </div>
-        <div><?php echo $message; ?></div>
+        <div><?php echo htmlspecialchars($message); ?></div>
     </div>
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
 </div>
 <?php endif; ?>
 
-<?php if (isset($error)): ?>
+<?php if ($error): ?>
 <div class="alert alert-danger alert-dismissible" role="alert">
     <div class="d-flex">
         <div class="me-2">
@@ -754,7 +767,7 @@ if ($action === 'add' || $action === 'edit' || $action === 'bulk_import') {
                 <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v4M12 17h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z"/>
             </svg>
         </div>
-        <div><?php echo $error; ?></div>
+        <div><?php echo htmlspecialchars($error); ?></div>
     </div>
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
 </div>
@@ -775,7 +788,7 @@ if ($action === 'add' || $action === 'edit' || $action === 'bulk_import') {
         </div>
     </div>
     <div class="card-body">
-        <form method="POST" action="dashboard.php?page=users&action=add">
+        <form method="POST" action="dashboard.php?page=users&action=add" id="addUserForm">
             <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
             
             <div class="row">
@@ -951,7 +964,7 @@ if ($action === 'add' || $action === 'edit' || $action === 'bulk_import') {
         </div>
     </div>
     <div class="card-body">
-        <form method="POST" action="dashboard.php?page=users&action=edit&id=<?php echo $edit_user['id']; ?>">
+        <form method="POST" action="dashboard.php?page=users&action=edit&id=<?php echo $edit_user['id']; ?>" id="editUserForm">
             <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
             
             <div class="row">
@@ -1234,7 +1247,7 @@ if ($action === 'add' || $action === 'edit' || $action === 'bulk_import') {
                                         </a>
                                         
                                         <?php if ($list_user['id'] != $_SESSION['user_id']): ?>
-                                        <button class="dropdown-item" onclick="resetUserPassword(<?php echo $list_user['id']; ?>, '<?php echo htmlspecialchars($list_user['first_name'] . ' ' . $list_user['last_name']); ?>')">
+                                        <button class="dropdown-item" onclick="resetUserPassword(<?php echo $list_user['id']; ?>, '<?php echo htmlspecialchars($list_user['first_name'] . ' ' . $list_user['last_name']); ?>')"
                                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" class="me-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                                                 <circle cx="12" cy="16" r="1"></circle>
@@ -1453,11 +1466,6 @@ if ($action === 'add' || $action === 'edit' || $action === 'bulk_import') {
 </div>
 
 <script>
-// Prevent form resubmission on page refresh
-if (window.history.replaceState) {
-    window.history.replaceState(null, null, 'dashboard.php?page=users');
-}
-
 // CSRF token for AJAX requests
 const csrfToken = '<?php echo generate_csrf_token(); ?>';
 
@@ -1682,4 +1690,4 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }, 5000);
 });
-</script>
+</script>>
