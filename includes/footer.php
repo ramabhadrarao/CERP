@@ -1,65 +1,70 @@
 </div>
-    </div>
-    
-    <!-- Tabler UI Footer -->
-    <footer class="footer footer-transparent d-print-none">
-        <div class="container-xl">
-            <div class="row text-center align-items-center flex-row-reverse">
-                <div class="col-lg-auto ms-lg-auto">
-                    <ul class="list-inline list-inline-dots mb-0">
-                        <li class="list-inline-item">
-                            <a href="dashboard.php?page=reports" class="link-secondary" rel="noopener">
-                                Reports
-                            </a>
-                        </li>
-                        <li class="list-inline-item">
-                            <a href="dashboard.php?page=settings" class="link-secondary" rel="noopener">
-                                Settings
-                            </a>
-                        </li>
-                        <li class="list-inline-item">
-                            <a href="https://github.com/tabler/tabler" target="_blank" class="link-secondary" rel="noopener">
-                                Source code
-                            </a>
-                        </li>
-                        <li class="list-inline-item">
-                            <a href="test_auth.php" class="link-secondary" rel="noopener">
-                                Debug
-                            </a>
-                        </li>
-                    </ul>
-                </div>
-                <div class="col-12 col-lg-auto mt-3 mt-lg-0">
-                    <ul class="list-inline list-inline-dots mb-0">
-                        <li class="list-inline-item">
-                            Copyright &copy; 2025
-                            <a href="dashboard.php" class="link-secondary">School Management System</a>.
-                            All rights reserved.
-                        </li>
-                        <li class="list-inline-item">
-                            <a href="https://tabler.io" target="_blank" class="link-secondary" rel="noopener">
-                                v1.0.0-beta17
-                            </a>
-                        </li>
-                    </ul>
-                </div>
+</div>
+
+<!-- Enhanced Tabler UI Footer -->
+<footer class="footer footer-transparent d-print-none">
+    <div class="container-xl">
+        <div class="row text-center align-items-center flex-row-reverse">
+            <div class="col-lg-auto ms-lg-auto">
+                <ul class="list-inline list-inline-dots mb-0">
+                    <li class="list-inline-item">
+                        <a href="dashboard.php?page=reports" class="link-secondary" rel="noopener">
+                            Reports
+                        </a>
+                    </li>
+                    <li class="list-inline-item">
+                        <a href="dashboard.php?page=settings" class="link-secondary" rel="noopener">
+                            Settings
+                        </a>
+                    </li>
+                    <li class="list-inline-item">
+                        <a href="https://github.com/tabler/tabler" target="_blank" class="link-secondary" rel="noopener">
+                            Tabler UI
+                        </a>
+                    </li>
+                    <?php if (isset($_SESSION['role']) && $_SESSION['role'] === 'super_admin'): ?>
+                    <li class="list-inline-item">
+                        <a href="test-popup.php" class="link-secondary" rel="noopener">
+                            Test Popups
+                        </a>
+                    </li>
+                    <?php endif; ?>
+                </ul>
+            </div>
+            <div class="col-12 col-lg-auto mt-3 mt-lg-0">
+                <ul class="list-inline list-inline-dots mb-0">
+                    <li class="list-inline-item">
+                        Copyright &copy; 2025
+                        <a href="dashboard.php" class="link-secondary">Educational Management System</a>.
+                        All rights reserved.
+                    </li>
+                    <li class="list-inline-item">
+                        <a href="https://tabler.io" target="_blank" class="link-secondary" rel="noopener">
+                            Powered by Tabler UI v1.0.0-beta17
+                        </a>
+                    </li>
+                </ul>
             </div>
         </div>
-    </footer>
-</div>
+    </div>
+</footer>
 
 <!-- Core Tabler JavaScript -->
 <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/js/tabler.min.js"></script>
 
 <script>
-// Enhanced Tabler UI JavaScript with proper sidebar management
+// Enhanced Tabler UI JavaScript System with Complete Popup Functionality
 document.addEventListener('DOMContentLoaded', function() {
     
-    // Global sidebar state management
-    window.sidebarState = {
-        isMinimized: false,
-        isMobile: window.innerWidth <= 767,
-        autoCollapseEnabled: localStorage.getItem('sidebarAutoCollapse') !== 'false'
+    // Global application state
+    window.TablerApp = {
+        sidebar: {
+            isMinimized: localStorage.getItem('sidebarMinimized') === 'true',
+            isMobile: window.innerWidth <= 767,
+            autoCollapseEnabled: localStorage.getItem('sidebarAutoCollapse') !== 'false'
+        },
+        popups: new Map(),
+        notifications: []
     };
     
     // Initialize Tabler components
@@ -71,6 +76,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize navigation handlers
     initializeNavigation();
     
+    // Initialize popup system
+    initializePopupSystem();
+    
     // Handle window resize
     let resizeTimeout;
     window.addEventListener('resize', function() {
@@ -79,33 +87,63 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     function initializeTablerComponents() {
-        // Initialize all Tabler dropdowns
+        // Initialize all Tabler dropdowns with enhanced settings
         const dropdownElementList = [].slice.call(document.querySelectorAll('[data-bs-toggle="dropdown"]'));
         const dropdownList = dropdownElementList.map(function (dropdownToggleEl) {
             return new bootstrap.Dropdown(dropdownToggleEl, {
                 boundary: 'viewport',
-                autoClose: true
+                autoClose: true,
+                popperConfig: {
+                    modifiers: [
+                        {
+                            name: 'offset',
+                            options: {
+                                offset: [0, 4]
+                            }
+                        }
+                    ]
+                }
             });
         });
         
-        // Initialize tooltips
+        // Initialize tooltips with enhanced options
         const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
         const tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
             return new bootstrap.Tooltip(tooltipTriggerEl, {
-                container: 'body'
+                container: 'body',
+                boundary: 'viewport',
+                placement: 'auto',
+                trigger: 'hover focus',
+                delay: { show: 500, hide: 100 }
             });
         });
         
-        // Initialize modals
+        // Initialize modals with enhanced settings
         const modalElementList = [].slice.call(document.querySelectorAll('.modal'));
         const modalList = modalElementList.map(function (modalEl) {
-            return new bootstrap.Modal(modalEl);
+            return new bootstrap.Modal(modalEl, {
+                backdrop: 'static',
+                keyboard: true,
+                focus: true
+            });
+        });
+        
+        // Initialize popovers
+        const popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
+        const popoverList = popoverTriggerList.map(function (popoverTriggerEl) {
+            return new bootstrap.Popover(popoverTriggerEl, {
+                container: 'body',
+                boundary: 'viewport',
+                placement: 'auto',
+                trigger: 'click'
+            });
         });
         
         console.log('Tabler components initialized:', {
             dropdowns: dropdownList.length,
             tooltips: tooltipList.length,
-            modals: modalList.length
+            modals: modalList.length,
+            popovers: popoverList.length
         });
     }
     
@@ -117,8 +155,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!sidebar || !pageWrapper) return;
         
         // Restore sidebar state from localStorage
-        const isMinimized = localStorage.getItem('sidebarMinimized') === 'true';
-        if (isMinimized && !window.sidebarState.isMobile) {
+        if (window.TablerApp.sidebar.isMinimized && !window.TablerApp.sidebar.isMobile) {
             minimizeSidebar(false);
         }
         
@@ -126,7 +163,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const mobileToggle = document.querySelector('.navbar-toggler');
         if (mobileToggle) {
             mobileToggle.addEventListener('click', function() {
-                if (window.sidebarState.isMobile) {
+                if (window.TablerApp.sidebar.isMobile) {
                     sidebar.classList.toggle('show');
                     updateMobileOverlay();
                 }
@@ -154,25 +191,24 @@ document.addEventListener('DOMContentLoaded', function() {
         toggleBtn.title = 'Toggle Sidebar';
         
         toggleBtn.addEventListener('click', function() {
-            if (window.sidebarState.isMinimized) {
+            if (window.TablerApp.sidebar.isMinimized) {
                 maximizeSidebar();
             } else {
                 minimizeSidebar();
             }
         });
         
-        // Insert at the beginning of header container
         header.insertBefore(toggleBtn, header.firstChild);
     }
     
     function minimizeSidebar(saveState = true) {
-        if (window.sidebarState.isMobile) return;
+        if (window.TablerApp.sidebar.isMobile) return;
         
         const sidebar = document.querySelector('.navbar-vertical');
         const pageWrapper = document.querySelector('.page-wrapper');
         const header = document.querySelector('.navbar.navbar-expand-md');
         
-        window.sidebarState.isMinimized = true;
+        window.TablerApp.sidebar.isMinimized = true;
         
         sidebar.classList.add('minimized');
         pageWrapper.classList.add('sidebar-minimized');
@@ -185,18 +221,16 @@ document.addEventListener('DOMContentLoaded', function() {
         
         updateToggleButton();
         triggerLayoutUpdate();
-        
-        console.log('Sidebar minimized');
     }
     
     function maximizeSidebar(saveState = true) {
-        if (window.sidebarState.isMobile) return;
+        if (window.TablerApp.sidebar.isMobile) return;
         
         const sidebar = document.querySelector('.navbar-vertical');
         const pageWrapper = document.querySelector('.page-wrapper');
         const header = document.querySelector('.navbar.navbar-expand-md');
         
-        window.sidebarState.isMinimized = false;
+        window.TablerApp.sidebar.isMinimized = false;
         
         sidebar.classList.remove('minimized');
         pageWrapper.classList.remove('sidebar-minimized');
@@ -209,15 +243,13 @@ document.addEventListener('DOMContentLoaded', function() {
         
         updateToggleButton();
         triggerLayoutUpdate();
-        
-        console.log('Sidebar maximized');
     }
     
     function updateToggleButton() {
         const toggleBtn = document.getElementById('sidebarToggle');
         if (!toggleBtn) return;
         
-        if (window.sidebarState.isMinimized) {
+        if (window.TablerApp.sidebar.isMinimized) {
             toggleBtn.innerHTML = `
                 <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
                     <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
@@ -240,25 +272,24 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function handleWindowResize() {
-        const wasMobile = window.sidebarState.isMobile;
-        window.sidebarState.isMobile = window.innerWidth <= 767;
+        const wasMobile = window.TablerApp.sidebar.isMobile;
+        window.TablerApp.sidebar.isMobile = window.innerWidth <= 767;
         
-        if (window.sidebarState.isMobile && !wasMobile) {
+        if (window.TablerApp.sidebar.isMobile && !wasMobile) {
             // Switched to mobile
             const sidebar = document.querySelector('.navbar-vertical');
             sidebar.classList.remove('minimized');
             sidebar.classList.remove('show');
             removeDesktopClasses();
             removeOverlay();
-        } else if (!window.sidebarState.isMobile && wasMobile) {
+        } else if (!window.TablerApp.sidebar.isMobile && wasMobile) {
             // Switched to desktop
             const sidebar = document.querySelector('.navbar-vertical');
             sidebar.classList.remove('show');
             removeOverlay();
             
             // Restore desktop sidebar state
-            const isMinimized = localStorage.getItem('sidebarMinimized') === 'true';
-            if (isMinimized) {
+            if (window.TablerApp.sidebar.isMinimized) {
                 minimizeSidebar(false);
             }
         }
@@ -320,11 +351,10 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function triggerLayoutUpdate() {
-        // Trigger resize events for responsive components
         setTimeout(() => {
             window.dispatchEvent(new Event('resize'));
             window.dispatchEvent(new CustomEvent('sidebarToggle', {
-                detail: window.sidebarState
+                detail: window.TablerApp.sidebar
             }));
         }, 100);
     }
@@ -339,7 +369,7 @@ document.addEventListener('DOMContentLoaded', function() {
         navLinks.forEach(link => {
             if (link.getAttribute('href') && !link.getAttribute('href').startsWith('#')) {
                 link.addEventListener('click', function() {
-                    if (window.sidebarState.isMobile) {
+                    if (window.TablerApp.sidebar.isMobile) {
                         setTimeout(() => {
                             const sidebar = document.querySelector('.navbar-vertical');
                             sidebar.classList.remove('show');
@@ -380,12 +410,192 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Enhanced Popup System
+    function initializePopupSystem() {
+        // Add CSS for popup animations if not already present
+        if (!document.getElementById('tabler-popup-styles')) {
+            const style = document.createElement('style');
+            style.id = 'tabler-popup-styles';
+            style.textContent = `
+                @keyframes slideInRight {
+                    from { transform: translateX(100%); opacity: 0; }
+                    to { transform: translateX(0); opacity: 1; }
+                }
+                @keyframes slideOutRight {
+                    from { transform: translateX(0); opacity: 1; }
+                    to { transform: translateX(100%); opacity: 0; }
+                }
+                @keyframes fadeIn {
+                    from { opacity: 0; }
+                    to { opacity: 1; }
+                }
+                @keyframes fadeOut {
+                    from { opacity: 1; }
+                    to { opacity: 0; }
+                }
+                @keyframes scaleIn {
+                    from { transform: scale(0.9); opacity: 0; }
+                    to { transform: scale(1); opacity: 1; }
+                }
+                @keyframes scaleOut {
+                    from { transform: scale(1); opacity: 1; }
+                    to { transform: scale(0.9); opacity: 0; }
+                }
+                
+                .tabler-popup-container {
+                    position: fixed !important;
+                    top: 0 !important;
+                    left: 0 !important;
+                    width: 100% !important;
+                    height: 100% !important;
+                    background: rgba(var(--tblr-body-color-rgb), 0.32) !important;
+                    z-index: var(--z-popup) !important;
+                    display: flex !important;
+                    align-items: center !important;
+                    justify-content: center !important;
+                    backdrop-filter: blur(4px);
+                    animation: fadeIn 0.2s ease;
+                }
+                
+                .tabler-popup-content {
+                    max-width: 32rem;
+                    width: 90%;
+                    max-height: 80vh;
+                    overflow-y: auto;
+                    margin: 0;
+                    animation: scaleIn 0.2s ease;
+                    box-shadow: var(--tblr-box-shadow-lg);
+                }
+                
+                .tabler-popup-container.closing {
+                    animation: fadeOut 0.2s ease;
+                }
+                
+                .tabler-popup-container.closing .tabler-popup-content {
+                    animation: scaleOut 0.2s ease;
+                }
+            `;
+            document.head.appendChild(style);
+        }
+    }
+    
+    // Global popup functions
+    window.createTablerPopup = function(title, content, options = {}) {
+        const popupId = 'tabler-popup-' + Date.now();
+        
+        // Remove existing popups if not stacking
+        if (!options.stack) {
+            document.querySelectorAll('.tabler-popup-container').forEach(el => el.remove());
+            window.TablerApp.popups.clear();
+        }
+        
+        const popup = document.createElement('div');
+        popup.className = 'tabler-popup-container';
+        popup.id = popupId;
+        
+        const closeButtonHtml = options.hideCloseButton ? '' : `
+            <div class="card-actions">
+                <button class="btn-close" onclick="closeTablerPopup('${popupId}')" aria-label="Close"></button>
+            </div>
+        `;
+        
+        popup.innerHTML = `
+            <div class="tabler-popup-content card">
+                <div class="card-header">
+                    <h3 class="card-title">${title}</h3>
+                    ${closeButtonHtml}
+                </div>
+                <div class="card-body">${content}</div>
+            </div>
+        `;
+        
+        // Close on backdrop click unless disabled
+        if (!options.disableBackdropClose) {
+            popup.addEventListener('click', function(e) {
+                if (e.target === popup) {
+                    closeTablerPopup(popupId);
+                }
+            });
+        }
+        
+        // Close on Escape key unless disabled
+        if (!options.disableEscapeClose) {
+            const escapeHandler = function(e) {
+                if (e.key === 'Escape') {
+                    closeTablerPopup(popupId);
+                }
+            };
+            document.addEventListener('keydown', escapeHandler);
+            popup.setAttribute('data-escape-handler', 'true');
+        }
+        
+        document.body.appendChild(popup);
+        window.TablerApp.popups.set(popupId, popup);
+        
+        // Auto-close if specified
+        if (options.autoClose) {
+            setTimeout(() => closeTablerPopup(popupId), options.autoClose);
+        }
+        
+        return popupId;
+    };
+    
+    window.updateTablerPopup = function(title, content, popupId = null) {
+        const popup = popupId ? 
+            document.getElementById(popupId) : 
+            document.querySelector('.tabler-popup-container:last-child');
+            
+        if (popup) {
+            const titleEl = popup.querySelector('.card-title');
+            const contentEl = popup.querySelector('.card-body');
+            
+            if (titleEl) titleEl.textContent = title;
+            if (contentEl) contentEl.innerHTML = content;
+        }
+    };
+    
+    window.closeTablerPopup = function(popupId = null) {
+        const popup = popupId ? 
+            document.getElementById(popupId) : 
+            document.querySelector('.tabler-popup-container:last-child');
+            
+        if (popup) {
+            popup.classList.add('closing');
+            
+            // Remove escape key handler if it exists
+            if (popup.hasAttribute('data-escape-handler')) {
+                document.removeEventListener('keydown', function(e) {
+                    if (e.key === 'Escape') {
+                        closeTablerPopup(popupId);
+                    }
+                });
+            }
+            
+            setTimeout(() => {
+                popup.remove();
+                if (popupId) {
+                    window.TablerApp.popups.delete(popupId);
+                }
+            }, 200);
+        }
+    };
+    
+    window.closeAllTablerPopups = function() {
+        document.querySelectorAll('.tabler-popup-container').forEach(popup => {
+            popup.classList.add('closing');
+            setTimeout(() => popup.remove(), 200);
+        });
+        window.TablerApp.popups.clear();
+    };
+    
     // Enhanced message display with Tabler styling
-    window.showMessage = function(type, message, duration = 3000) {
+    window.showMessage = function(type, message, duration = 5000) {
         // Remove existing messages
         document.querySelectorAll('.alert.auto-message').forEach(msg => msg.remove());
         
+        const messageId = 'message-' + Date.now();
         const alertDiv = document.createElement('div');
+        alertDiv.id = messageId;
         alertDiv.className = `alert alert-${type} alert-dismissible auto-message`;
         alertDiv.style.cssText = `
             position: fixed !important;
@@ -420,7 +630,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }, duration);
         
-        return alertDiv;
+        return messageId;
     };
     
     function getAlertIcon(type) {
@@ -433,70 +643,17 @@ document.addEventListener('DOMContentLoaded', function() {
         return icons[type] || icons.info;
     }
     
-    // Custom popup functionality with Tabler styling
-    window.createPopup = function(title, content, options = {}) {
-        // Remove existing popups
-        document.querySelectorAll('.custom-popup-container').forEach(el => el.remove());
-        
-        const popup = document.createElement('div');
-        popup.className = 'custom-popup-container popup-container';
-        popup.style.cssText = `
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100% !important;
-            height: 100% !important;
-            background: rgba(var(--tblr-body-color-rgb), 0.32) !important;
-            z-index: var(--z-popup) !important;
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            backdrop-filter: blur(4px);
-            animation: fadeIn 0.2s ease;
-        `;
-        
-        popup.innerHTML = `
-            <div class="popup-content card" style="
-                max-width: 32rem;
-                width: 90%;
-                max-height: 80vh;
-                overflow-y: auto;
-                margin: 0;
-                animation: scaleIn 0.2s ease;
-            ">
-                <div class="card-header">
-                    <h3 class="card-title">${title}</h3>
-                    <div class="card-actions">
-                        <button class="btn-close" onclick="closePopup()" aria-label="Close"></button>
-                    </div>
-                </div>
-                <div class="card-body">${content}</div>
-            </div>
-        `;
-        
-        // Close on backdrop click
-        popup.addEventListener('click', function(e) {
-            if (e.target === popup) {
-                closePopup();
-            }
-        });
-        
-        document.body.appendChild(popup);
-        
-        // Auto-close if specified
-        if (options.autoClose) {
-            setTimeout(closePopup, options.autoClose);
-        }
-        
-        return popup;
+    // Global utility functions
+    window.getSidebarState = function() {
+        return window.TablerApp.sidebar;
     };
     
-    window.closePopup = function() {
-        const popups = document.querySelectorAll('.custom-popup-container');
-        popups.forEach(popup => {
-            popup.style.animation = 'fadeOut 0.2s ease';
-            setTimeout(() => popup.remove(), 200);
-        });
+    window.toggleSidebar = function() {
+        if (window.TablerApp.sidebar.isMinimized) {
+            maximizeSidebar();
+        } else {
+            minimizeSidebar();
+        }
     };
     
     // Auto-hide alerts with fade out
@@ -510,45 +667,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 500);
         });
     }, 5000);
-    
-    // Global utility functions
-    window.getSidebarState = function() {
-        return window.sidebarState;
-    };
-    
-    window.toggleSidebar = function() {
-        if (window.sidebarState.isMinimized) {
-            maximizeSidebar();
-        } else {
-            minimizeSidebar();
-        }
-    };
-    
-    // Add CSS animations
-    const style = document.createElement('style');
-    style.textContent = `
-        @keyframes slideInRight {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-        @keyframes slideOutRight {
-            from { transform: translateX(0); opacity: 1; }
-            to { transform: translateX(100%); opacity: 0; }
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-        }
-        @keyframes fadeOut {
-            from { opacity: 1; }
-            to { opacity: 0; }
-        }
-        @keyframes scaleIn {
-            from { transform: scale(0.9); opacity: 0; }
-            to { transform: scale(1); opacity: 1; }
-        }
-    `;
-    document.head.appendChild(style);
     
     console.log('Tabler UI system initialized successfully');
 });
@@ -580,8 +698,37 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Confirmation dialogs with Tabler styling
 function confirmDelete(item, name) {
-    return confirm(`Are you sure you want to delete ${item} "${name}"?\n\nThis action cannot be undone.`);
+    return new Promise((resolve) => {
+        const popupId = createTablerPopup('Confirm Deletion', `
+            <div class="text-center">
+                <div class="mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-danger" width="64" height="64" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                        <path d="M12 9v2m0 4v.01"/>
+                        <path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75"/>
+                    </svg>
+                </div>
+                <h3>Delete ${item}?</h3>
+                <p class="text-muted">Are you sure you want to delete "${name}"?<br>This action cannot be undone.</p>
+                <div class="btn-list">
+                    <button class="btn btn-danger" onclick="handleDeleteConfirm(true, '${popupId}', ${resolve})">Yes, delete</button>
+                    <button class="btn btn-outline-secondary" onclick="handleDeleteConfirm(false, '${popupId}', ${resolve})">Cancel</button>
+                </div>
+            </div>
+        `, { disableBackdropClose: true, disableEscapeClose: true });
+        
+        // Store resolve function for the buttons
+        window[`resolve_${popupId}`] = resolve;
+    });
 }
+
+window.handleDeleteConfirm = function(confirmed, popupId, resolve) {
+    closeTablerPopup(popupId);
+    if (window[`resolve_${popupId}`]) {
+        window[`resolve_${popupId}`](confirmed);
+        delete window[`resolve_${popupId}`];
+    }
+};
 
 // Debug functions for development
 if (window.location.search.includes('debug=1')) {
@@ -593,7 +740,8 @@ if (window.location.search.includes('debug=1')) {
     debugBtn.style.cssText = 'position: fixed; bottom: 1rem; right: 1rem; z-index: 9999;';
     debugBtn.innerHTML = 'Debug';
     debugBtn.onclick = () => {
-        console.log('Sidebar State:', window.getSidebarState());
+        console.log('Tabler App State:', window.TablerApp);
+        console.log('Active Popups:', window.TablerApp.popups);
         showMessage('info', 'Check console for debug information');
     };
     document.body.appendChild(debugBtn);
