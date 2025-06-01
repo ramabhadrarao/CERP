@@ -1,5 +1,5 @@
 <?php
-// pages/roles.php - Complete Enhanced Role Management System
+// pages/roles.php - Dynamic Role Management System
 
 // Check if user has admin permission
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
@@ -13,6 +13,10 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
 // Get action and parameters
 $action = isset($_GET['action']) ? sanitize_input($_GET['action']) : 'list';
 $role_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+
+// Initialize variables
+$message = '';
+$error = '';
 
 // Get success/error messages from URL parameters
 if (isset($_GET['success'])) {
@@ -58,150 +62,82 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     exit;
                 }
                 break;
+                
+            case 'add_permission':
+                $result = handle_add_permission($_POST);
+                if ($result['success']) {
+                    header('Location: dashboard.php?page=roles&success=' . urlencode($result['message']));
+                    exit;
+                } else {
+                    $error = $result['message'];
+                }
+                break;
         }
     }
 }
 
-// Comprehensive available permissions for the educational management system
-$available_permissions = [
-    // System Administration
-    'all' => 'Full System Access (Super Admin)',
-    'manage_users' => 'Manage Users',
-    'manage_roles' => 'Manage Roles & Permissions',
-    'system_settings' => 'System Settings',
-    'view_audit_logs' => 'View Audit Logs',
-    'manage_system_backups' => 'Manage System Backups',
+// Get all existing permissions from all roles dynamically
+function get_all_available_permissions() {
+    global $pdo;
+    try {
+        $stmt = $pdo->query("SELECT permissions FROM roles WHERE permissions IS NOT NULL AND permissions != ''");
+        $all_permissions = [];
+        
+        while ($row = $stmt->fetch()) {
+            $permissions = json_decode($row['permissions'], true);
+            if (is_array($permissions)) {
+                $all_permissions = array_merge($all_permissions, $permissions);
+            }
+        }
+        
+        // Remove duplicates and sort
+        $all_permissions = array_unique($all_permissions);
+        sort($all_permissions);
+        
+        return $all_permissions;
+    } catch (Exception $e) {
+        error_log("Get permissions error: " . $e->getMessage());
+        return [];
+    }
+}
+
+// Get permission categories based on existing permissions
+function get_permission_categories($all_permissions) {
+    $categories = [];
     
-    // Institutional Management
-    'manage_college' => 'Manage College Information',
-    'manage_departments' => 'Manage Departments',
-    'manage_programs' => 'Manage Programs',
-    'manage_branches' => 'Manage Branches',
-    'manage_regulations' => 'Manage Regulations',
-    'manage_academic_years' => 'Manage Academic Years',
-    'manage_batches' => 'Manage Batches',
-    'manage_semesters' => 'Manage Semesters',
+    foreach ($all_permissions as $permission) {
+        // Auto-categorize based on permission name patterns
+        if (strpos($permission, 'manage_users') !== false || strpos($permission, 'manage_roles') !== false || strpos($permission, 'system_') !== false || $permission === 'all') {
+            $categories['System Administration'][] = $permission;
+        } elseif (strpos($permission, 'student') !== false) {
+            $categories['Student Management'][] = $permission;
+        } elseif (strpos($permission, 'faculty') !== false) {
+            $categories['Faculty Management'][] = $permission;
+        } elseif (strpos($permission, 'course') !== false || strpos($permission, 'elective') !== false) {
+            $categories['Course Management'][] = $permission;
+        } elseif (strpos($permission, 'grade') !== false || strpos($permission, 'mark') !== false || strpos($permission, 'assessment') !== false) {
+            $categories['Assessment & Marks'][] = $permission;
+        } elseif (strpos($permission, 'attendance') !== false) {
+            $categories['Attendance Management'][] = $permission;
+        } elseif (strpos($permission, 'report') !== false || strpos($permission, 'analytics') !== false || strpos($permission, 'export') !== false) {
+            $categories['Reporting & Analytics'][] = $permission;
+        } elseif (strpos($permission, 'department') !== false || strpos($permission, 'program') !== false || strpos($permission, 'batch') !== false) {
+            $categories['Institutional Management'][] = $permission;
+        } elseif (strpos($permission, 'profile') !== false || strpos($permission, 'password') !== false) {
+            $categories['Personal Access'][] = $permission;
+        } elseif (strpos($permission, 'ward') !== false || strpos($permission, 'parent') !== false) {
+            $categories['Parent Access'][] = $permission;
+        } elseif (strpos($permission, 'own_') !== false || strpos($permission, 'view_fee') !== false || strpos($permission, 'download_') !== false) {
+            $categories['Student Access'][] = $permission;
+        } elseif (strpos($permission, 'notification') !== false || strpos($permission, 'announcement') !== false || strpos($permission, 'communication') !== false) {
+            $categories['Communications'][] = $permission;
+        } else {
+            $categories['Other Permissions'][] = $permission;
+        }
+    }
     
-    // Student Management
-    'manage_students' => 'Manage Students',
-    'view_students' => 'View Students',
-    'manage_student_registrations' => 'Manage Student Course Registrations',
-    'view_student_registrations' => 'View Student Course Registrations',
-    'manage_student_documents' => 'Manage Student Documents',
-    'view_student_documents' => 'View Student Documents',
-    'approve_student_registrations' => 'Approve Student Registrations',
-    'manage_student_admissions' => 'Manage Student Admissions',
-    'view_student_records' => 'View Student Academic Records',
-    
-    // Faculty Management
-    'manage_faculty' => 'Manage Faculty',
-    'view_faculty' => 'View Faculty',
-    'manage_faculty_assignments' => 'Manage Faculty Course Assignments',
-    'view_faculty_assignments' => 'View Faculty Course Assignments',
-    'manage_faculty_qualifications' => 'Manage Faculty Qualifications',
-    'manage_faculty_workload' => 'Manage Faculty Workload',
-    'approve_faculty_applications' => 'Approve Faculty Applications',
-    
-    // Course Management
-    'manage_courses' => 'Manage Courses',
-    'view_courses' => 'View Courses',
-    'manage_course_prerequisites' => 'Manage Course Prerequisites',
-    'manage_electives' => 'Manage Elective Groups',
-    'view_electives' => 'View Elective Groups',
-    'approve_course_proposals' => 'Approve Course Proposals',
-    'manage_course_syllabus' => 'Manage Course Syllabus',
-    'manage_course_schedule' => 'Manage Course Schedule',
-    
-    // Assessment & Marks
-    'manage_assessments' => 'Manage Assessment Components',
-    'grade_students' => 'Grade Students',
-    'view_grades' => 'View Grades',
-    'lock_unlock_marks' => 'Lock/Unlock Marks',
-    'verify_marks' => 'Verify Marks',
-    'modify_marks' => 'Modify Student Marks',
-    'approve_grade_changes' => 'Approve Grade Changes',
-    'generate_transcripts' => 'Generate Academic Transcripts',
-    
-    // Attendance Management
-    'manage_class_schedule' => 'Manage Class Schedule',
-    'mark_attendance' => 'Mark Attendance',
-    'view_attendance' => 'View Attendance',
-    'generate_attendance_reports' => 'Generate Attendance Reports',
-    'modify_attendance' => 'Modify Attendance Records',
-    'approve_attendance_changes' => 'Approve Attendance Changes',
-    
-    // Research & Publications (Faculty)
-    'manage_publications' => 'Manage Research Publications',
-    'view_publications' => 'View Research Publications',
-    'approve_publications' => 'Approve Publication Records',
-    'manage_research_projects' => 'Manage Research Projects',
-    
-    // Reporting & Analytics
-    'view_reports' => 'View Reports',
-    'generate_reports' => 'Generate Reports',
-    'view_analytics' => 'View Analytics Dashboard',
-    'export_data' => 'Export System Data',
-    'generate_certificates' => 'Generate Certificates',
-    'view_institutional_reports' => 'View Institutional Reports',
-    'access_financial_reports' => 'Access Financial Reports',
-    
-    // Notifications & Communications
-    'manage_notifications' => 'Manage System Notifications',
-    'send_announcements' => 'Send Announcements',
-    'view_announcements' => 'View Announcements',
-    'send_bulk_communications' => 'Send Bulk Communications',
-    'manage_communication_templates' => 'Manage Communication Templates',
-    
-    // Profile & Personal Access
-    'view_profile' => 'View Own Profile',
-    'edit_profile' => 'Edit Own Profile',
-    'change_password' => 'Change Own Password',
-    'upload_documents' => 'Upload Personal Documents',
-    
-    // Parent-specific permissions
-    'view_ward_progress' => 'View Ward Progress (Parents)',
-    'view_ward_attendance' => 'View Ward Attendance (Parents)',
-    'view_ward_grades' => 'View Ward Grades (Parents)',
-    'communicate_with_faculty' => 'Communicate with Faculty (Parents)',
-    
-    // Student-specific permissions
-    'course_registration' => 'Course Registration (Students)',
-    'select_electives' => 'Select Electives (Students)',
-    'view_own_grades' => 'View Own Grades (Students)',
-    'view_own_attendance' => 'View Own Attendance (Students)',
-    'download_certificates' => 'Download Certificates (Students)',
-    'view_fee_details' => 'View Fee Details (Students)',
-    'apply_for_documents' => 'Apply for Documents (Students)',
-    
-    // Staff-specific permissions
-    'data_entry' => 'Data Entry Operations',
-    'manage_records' => 'Manage Administrative Records',
-    'process_applications' => 'Process Applications',
-    'verify_documents' => 'Verify Documents',
-    'generate_id_cards' => 'Generate ID Cards',
-    
-    // Examination Management
-    'manage_exam_schedule' => 'Manage Examination Schedule',
-    'conduct_examinations' => 'Conduct Examinations',
-    'manage_exam_results' => 'Manage Examination Results',
-    'publish_results' => 'Publish Examination Results',
-    
-    // Library Management (if applicable)
-    'manage_library' => 'Manage Library Resources',
-    'issue_books' => 'Issue Books',
-    'manage_library_fines' => 'Manage Library Fines',
-    
-    // Finance & Fee Management
-    'manage_fees' => 'Manage Fee Structure',
-    'collect_fees' => 'Collect Fees',
-    'generate_fee_receipts' => 'Generate Fee Receipts',
-    'view_fee_reports' => 'View Fee Reports',
-    
-    // Placement & Career Services
-    'manage_placements' => 'Manage Placement Activities',
-    'coordinate_campus_recruitment' => 'Coordinate Campus Recruitment',
-    'manage_company_relations' => 'Manage Company Relations'
-];
+    return $categories;
+}
 
 // Get all roles for listing with enhanced query
 function get_all_roles() {
@@ -219,18 +155,7 @@ function get_all_roles() {
                     WHEN r.is_system_role = 1 THEN 1
                     ELSE 2
                 END,
-                CASE r.name 
-                    WHEN 'super_admin' THEN 1
-                    WHEN 'admin' THEN 2
-                    WHEN 'principal' THEN 3
-                    WHEN 'hod' THEN 4
-                    WHEN 'faculty' THEN 5
-                    WHEN 'student' THEN 6
-                    WHEN 'parent' THEN 7
-                    WHEN 'staff' THEN 8
-                    WHEN 'guest' THEN 9
-                    ELSE 10
-                END, r.name
+                r.name
         ");
         return $stmt->fetchAll();
     } catch (Exception $e) {
@@ -341,11 +266,6 @@ function handle_edit_role($id, $data) {
     $current_role = get_role_by_id($id);
     if (!$current_role) {
         return ['success' => false, 'message' => 'Role not found.'];
-    }
-    
-    // Prevent editing critical system roles
-    if ($current_role['is_system_role'] && in_array($current_role['name'], ['super_admin', 'admin'])) {
-        return ['success' => false, 'message' => 'Critical system roles cannot be modified.'];
     }
     
     // Validate input
@@ -474,9 +394,36 @@ function handle_delete_role($id) {
     }
 }
 
+// Handle adding new permission
+function handle_add_permission($data) {
+    if (empty($data['new_permission']) || strlen($data['new_permission']) < 3) {
+        return ['success' => false, 'message' => 'Permission name must be at least 3 characters long.'];
+    }
+    
+    if (!preg_match('/^[a-z_]+$/', $data['new_permission'])) {
+        return ['success' => false, 'message' => 'Permission name can only contain lowercase letters and underscores.'];
+    }
+    
+    // Check if permission already exists
+    $existing_permissions = get_all_available_permissions();
+    if (in_array($data['new_permission'], $existing_permissions)) {
+        return ['success' => false, 'message' => 'Permission already exists.'];
+    }
+    
+    // Log the action for audit
+    log_audit($_SESSION['user_id'], 'add_permission', 'permissions', null, null, [
+        'permission' => $data['new_permission'],
+        'description' => $data['permission_description'] ?? ''
+    ]);
+    
+    return ['success' => true, 'message' => 'Permission "' . $data['new_permission'] . '" is now available for use in roles.'];
+}
+
 // Get data based on current action
 $roles = [];
 $edit_role = null;
+$all_permissions = get_all_available_permissions();
+$permission_categories = get_permission_categories($all_permissions);
 
 if ($action === 'list' || $action === 'delete') {
     $roles = get_all_roles();
@@ -490,10 +437,15 @@ if ($action === 'edit' && $role_id) {
         $roles = get_all_roles();
     }
 }
+
+// Helper function to get permission display name
+function get_permission_display_name($permission) {
+    return ucwords(str_replace('_', ' ', $permission));
+}
 ?>
 
 <!-- Messages -->
-<?php if (isset($message)): ?>
+<?php if ($message): ?>
 <div class="alert alert-success alert-dismissible" role="alert">
     <div class="d-flex">
         <div class="me-2">
@@ -507,7 +459,7 @@ if ($action === 'edit' && $role_id) {
 </div>
 <?php endif; ?>
 
-<?php if (isset($error)): ?>
+<?php if ($error): ?>
 <div class="alert alert-danger alert-dismissible" role="alert">
     <div class="d-flex">
         <div class="me-2">
@@ -578,55 +530,49 @@ if ($action === 'edit' && $role_id) {
                             <input type="text" id="permissionSearch" class="form-control" placeholder="Search permissions...">
                         </div>
                         
-                        <!-- Permission categories with enhanced grouping -->
-                        <?php 
-                        $permission_categories = [
-                            'System Administration' => ['all', 'manage_users', 'manage_roles', 'system_settings', 'view_audit_logs', 'manage_system_backups'],
-                            'Institutional Management' => ['manage_college', 'manage_departments', 'manage_programs', 'manage_branches', 'manage_regulations', 'manage_academic_years', 'manage_batches', 'manage_semesters'],
-                            'Student Management' => ['manage_students', 'view_students', 'manage_student_registrations', 'view_student_registrations', 'manage_student_documents', 'view_student_documents', 'approve_student_registrations', 'manage_student_admissions', 'view_student_records'],
-                            'Faculty Management' => ['manage_faculty', 'view_faculty', 'manage_faculty_assignments', 'view_faculty_assignments', 'manage_faculty_qualifications', 'manage_faculty_workload', 'approve_faculty_applications'],
-                            'Course Management' => ['manage_courses', 'view_courses', 'manage_course_prerequisites', 'manage_electives', 'view_electives', 'approve_course_proposals', 'manage_course_syllabus', 'manage_course_schedule'],
-                            'Assessment & Marks' => ['manage_assessments', 'grade_students', 'view_grades', 'lock_unlock_marks', 'verify_marks', 'modify_marks', 'approve_grade_changes', 'generate_transcripts'],
-                            'Attendance' => ['manage_class_schedule', 'mark_attendance', 'view_attendance', 'generate_attendance_reports', 'modify_attendance', 'approve_attendance_changes'],
-                            'Research & Publications' => ['manage_publications', 'view_publications', 'approve_publications', 'manage_research_projects'],
-                            'Reporting & Analytics' => ['view_reports', 'generate_reports', 'view_analytics', 'export_data', 'generate_certificates', 'view_institutional_reports', 'access_financial_reports'],
-                            'Communications' => ['manage_notifications', 'send_announcements', 'view_announcements', 'send_bulk_communications', 'manage_communication_templates'],
-                            'Personal Access' => ['view_profile', 'edit_profile', 'change_password', 'upload_documents'],
-                            'Examination Management' => ['manage_exam_schedule', 'conduct_examinations', 'manage_exam_results', 'publish_results'],
-                            'Finance & Fees' => ['manage_fees', 'collect_fees', 'generate_fee_receipts', 'view_fee_reports'],
-                            'Role-Specific Access' => ['view_ward_progress', 'view_ward_attendance', 'view_ward_grades', 'communicate_with_faculty', 'course_registration', 'select_electives', 'view_own_grades', 'view_own_attendance', 'download_certificates', 'view_fee_details', 'apply_for_documents', 'data_entry', 'manage_records', 'process_applications', 'verify_documents', 'generate_id_cards'],
-                            'Additional Services' => ['manage_library', 'issue_books', 'manage_library_fines', 'manage_placements', 'coordinate_campus_recruitment', 'manage_company_relations']
-                        ];
-                        
-                        foreach ($permission_categories as $category => $perms): ?>
-                        <div class="mb-4 permission-category">
-                            <div class="d-flex align-items-center mb-3">
-                                <h5 class="mb-0 me-3"><?php echo htmlspecialchars($category); ?></h5>
-                                <div class="form-check form-switch">
-                                    <input class="form-check-input category-toggle" type="checkbox" data-category="<?php echo strtolower(str_replace([' ', '&'], ['_', 'and'], $category)); ?>">
-                                    <label class="form-check-label text-muted">Select All</label>
-                                </div>
+                        <!-- Add new permission section -->
+                        <div class="alert alert-info">
+                            <h5>Add New Permission</h5>
+                            <div class="input-group">
+                                <input type="text" id="newPermissionInput" class="form-control" placeholder="e.g., manage_library" pattern="[a-z_]+">
+                                <button type="button" class="btn btn-success" onclick="addNewPermission()">Add Permission</button>
                             </div>
-                            <div class="row" data-category="<?php echo strtolower(str_replace([' ', '&'], ['_', 'and'], $category)); ?>">
-                                <?php foreach ($perms as $perm): ?>
-                                    <?php if (isset($available_permissions[$perm])): ?>
+                            <small class="form-hint">Use lowercase letters and underscores only. New permissions will be available immediately.</small>
+                        </div>
+                        
+                        <!-- Dynamic permission categories -->
+                        <?php if (!empty($permission_categories)): ?>
+                            <?php foreach ($permission_categories as $category => $perms): ?>
+                            <div class="mb-4 permission-category">
+                                <div class="d-flex align-items-center mb-3">
+                                    <h5 class="mb-0 me-3"><?php echo htmlspecialchars($category); ?></h5>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input category-toggle" type="checkbox" data-category="<?php echo strtolower(str_replace([' ', '&'], ['_', 'and'], $category)); ?>">
+                                        <label class="form-check-label text-muted">Select All</label>
+                                    </div>
+                                </div>
+                                <div class="row" data-category="<?php echo strtolower(str_replace([' ', '&'], ['_', 'and'], $category)); ?>">
+                                    <?php foreach ($perms as $perm): ?>
                                     <div class="col-md-6 col-lg-4 permission-item">
                                         <label class="form-check">
                                             <input type="checkbox" name="permissions[]" value="<?php echo $perm; ?>" class="form-check-input permission-checkbox"
                                                    <?php echo (isset($_POST['permissions']) && in_array($perm, $_POST['permissions'])) ? 'checked' : ''; ?>>
                                             <span class="form-check-label">
-                                                <strong><?php echo htmlspecialchars($available_permissions[$perm]); ?></strong>
+                                                <strong><?php echo htmlspecialchars(get_permission_display_name($perm)); ?></strong>
                                                 <small class="text-muted d-block"><?php echo $perm; ?></small>
                                             </span>
                                         </label>
                                     </div>
-                                    <?php endif; ?>
-                                <?php endforeach; ?>
+                                    <?php endforeach; ?>
+                                </div>
                             </div>
-                        </div>
-                        <?php endforeach; ?>
-                        
-                        <div class="form-hint">Select all permissions this role should have. "Full System Access" grants all permissions.</div>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <div class="alert alert-warning">
+                                <h5>No Existing Permissions Found</h5>
+                                <p>Start by adding your first permission using the form above, or check existing roles for permissions.</p>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -650,7 +596,7 @@ if ($action === 'edit' && $role_id) {
 <!-- Edit Role Form -->
 <div class="card">
     <div class="card-header">
-        <h3 class="card-title">Edit Role: <?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $edit_role['name']))); ?></h3>
+        <h3 class="card-title">Edit Role: <?php echo htmlspecialchars($edit_role['description']); ?></h3>
         <div class="card-actions">
             <a href="dashboard.php?page=roles" class="btn btn-outline-secondary">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" class="me-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -661,14 +607,6 @@ if ($action === 'edit' && $role_id) {
         </div>
     </div>
     <div class="card-body">
-        <?php if ($edit_role['is_system_role'] && in_array($edit_role['name'], ['super_admin', 'admin'])): ?>
-        <div class="alert alert-warning">
-            <h4>Critical System Role</h4>
-            <p>This is a critical system role that cannot be modified to maintain system security and stability.</p>
-        </div>
-        <a href="dashboard.php?page=roles" class="btn btn-secondary">Back to Roles</a>
-        
-        <?php else: ?>
         <form method="POST" action="dashboard.php?page=roles&action=edit&id=<?php echo $edit_role['id']; ?>" id="roleForm">
             <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
             
@@ -718,7 +656,17 @@ if ($action === 'edit' && $role_id) {
                             <input type="text" id="permissionSearch" class="form-control" placeholder="Search permissions...">
                         </div>
                         
-                        <!-- Permission categories -->
+                        <!-- Add new permission section -->
+                        <div class="alert alert-info">
+                            <h5>Add New Permission</h5>
+                            <div class="input-group">
+                                <input type="text" id="newPermissionInput" class="form-control" placeholder="e.g., manage_library" pattern="[a-z_]+">
+                                <button type="button" class="btn btn-success" onclick="addNewPermission()">Add Permission</button>
+                            </div>
+                            <small class="form-hint">Use lowercase letters and underscores only. New permissions will be available immediately.</small>
+                        </div>
+                        
+                        <!-- Dynamic permission categories -->
                         <?php foreach ($permission_categories as $category => $perms): ?>
                         <div class="mb-4 permission-category">
                             <div class="d-flex align-items-center mb-3">
@@ -730,18 +678,16 @@ if ($action === 'edit' && $role_id) {
                             </div>
                             <div class="row" data-category="<?php echo strtolower(str_replace([' ', '&'], ['_', 'and'], $category)); ?>">
                                 <?php foreach ($perms as $perm): ?>
-                                    <?php if (isset($available_permissions[$perm])): ?>
-                                    <div class="col-md-6 col-lg-4 permission-item">
-                                        <label class="form-check">
-                                            <input type="checkbox" name="permissions[]" value="<?php echo $perm; ?>" class="form-check-input permission-checkbox"
-                                                   <?php echo in_array($perm, $selected_permissions) ? 'checked' : ''; ?>>
-                                            <span class="form-check-label">
-                                                <strong><?php echo htmlspecialchars($available_permissions[$perm]); ?></strong>
-                                                <small class="text-muted d-block"><?php echo $perm; ?></small>
-                                            </span>
-                                        </label>
-                                    </div>
-                                    <?php endif; ?>
+                                <div class="col-md-6 col-lg-4 permission-item">
+                                    <label class="form-check">
+                                        <input type="checkbox" name="permissions[]" value="<?php echo $perm; ?>" class="form-check-input permission-checkbox"
+                                               <?php echo in_array($perm, $selected_permissions) ? 'checked' : ''; ?>>
+                                        <span class="form-check-label">
+                                            <strong><?php echo htmlspecialchars(get_permission_display_name($perm)); ?></strong>
+                                            <small class="text-muted d-block"><?php echo $perm; ?></small>
+                                        </span>
+                                    </label>
+                                </div>
                                 <?php endforeach; ?>
                             </div>
                         </div>
@@ -762,7 +708,6 @@ if ($action === 'edit' && $role_id) {
                 <a href="dashboard.php?page=roles" class="btn btn-secondary ms-2">Cancel</a>
             </div>
         </form>
-        <?php endif; ?>
     </div>
 </div>
 
@@ -825,7 +770,7 @@ if ($action === 'edit' && $role_id) {
                                 </div>
                                 <div>
                                     <div class="font-weight-medium">
-                                        <?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $role['name']))); ?>
+                                        <?php echo htmlspecialchars($role['description']); ?>
                                     </div>
                                     <div class="text-muted small"><?php echo htmlspecialchars($role['name']); ?></div>
                                 </div>
@@ -851,14 +796,13 @@ if ($action === 'edit' && $role_id) {
                                     if ($permission_count <= 3): 
                                         foreach (array_slice($permissions, 0, 3) as $perm):
                                     ?>
-                                        <span class="badge bg-blue-lt"><?php echo htmlspecialchars($available_permissions[$perm] ?? $perm); ?></span>
+                                        <span class="badge bg-blue-lt"><?php echo htmlspecialchars(get_permission_display_name($perm)); ?></span>
                                     <?php 
                                         endforeach;
                                     else: 
                                     ?>
                                         <span class="badge bg-blue-lt"><?php echo $permission_count; ?> permissions</span>
-                                        <button class="btn btn-sm btn-ghost-secondary" data-bs-toggle="tooltip" 
-                                                title="<?php echo htmlspecialchars(implode(', ', array_map(fn($p) => $available_permissions[$p] ?? $p, $permissions))); ?>">
+                                        <button class="btn btn-sm btn-ghost-secondary" onclick="showPermissionDetails('<?php echo htmlspecialchars(json_encode($permissions)); ?>')">
                                             View All
                                         </button>
                                     <?php endif; ?>
@@ -905,34 +849,15 @@ if ($action === 'edit' && $role_id) {
                                     </svg>
                                 </a>
                                 
-                                <?php if (!$role['is_system_role']): ?>
-                                <div class="dropdown">
-                                    <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
-                                        Actions
-                                    </button>
-                                    <div class="dropdown-menu dropdown-menu-end">
-                                        <a class="dropdown-item" href="dashboard.php?page=roles&action=edit&id=<?php echo $role['id']; ?>">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" class="me-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                                            </svg>
-                                            Edit Role
-                                        </a>
-                                        
-                                        <?php if ($role['user_count'] == 0): ?>
-                                        <div class="dropdown-divider"></div>
-                                        <button class="dropdown-item text-danger" onclick="confirmDeleteRole(<?php echo $role['id']; ?>, '<?php echo htmlspecialchars($role['name']); ?>')">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" class="me-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                                <polyline points="3,6 5,6 21,6"></polyline>
-                                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                                <line x1="10" y1="11" x2="10" y2="17"></line>
-                                                <line x1="14" y1="11" x2="14" y2="17"></line>
-                                            </svg>
-                                            Delete Role
-                                        </button>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
+                                <?php if (!$role['is_system_role'] && $role['user_count'] == 0): ?>
+                                <button class="btn btn-sm btn-outline-danger" onclick="confirmDeleteRole(<?php echo $role['id']; ?>, '<?php echo htmlspecialchars($role['name']); ?>')">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="3,6 5,6 21,6"></polyline>
+                                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                    </svg>
+                                </button>
+                                <?php elseif (!$role['is_system_role']): ?>
+                                <span class="badge bg-red-lt">In Use</span>
                                 <?php else: ?>
                                 <span class="badge bg-blue-lt">System</span>
                                 <?php endif; ?>
@@ -997,11 +922,11 @@ if ($action === 'edit' && $role_id) {
         <div class="card">
             <div class="card-body">
                 <div class="d-flex align-items-center">
-                    <div class="subheader">Active Roles</div>
+                    <div class="subheader">Available Permissions</div>
                 </div>
-                <div class="h1 mb-3"><?php echo count(array_filter($roles, fn($r) => $r['status'] === 'active')); ?></div>
+                <div class="h1 mb-3"><?php echo count($all_permissions); ?></div>
                 <div class="d-flex mb-2">
-                    <div>Currently active</div>
+                    <div>Unique permissions</div>
                 </div>
             </div>
         </div>
@@ -1009,80 +934,68 @@ if ($action === 'edit' && $role_id) {
 </div>
 <?php endif; ?>
 
-<!-- Delete Confirmation Modal -->
-<div class="modal modal-blur fade" id="deleteRoleModal" tabindex="-1" role="dialog">
-    <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
-        <div class="modal-content">
-            <div class="modal-body">
-                <div class="modal-title">Are you sure?</div>
-                <div>Do you really want to delete role <strong id="deleteRoleName"></strong>? This action cannot be undone.</div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-link link-secondary me-auto" data-bs-dismiss="modal">Cancel</button>
-                <form method="POST" id="deleteRoleForm" style="display: inline;">
-                    <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
-                    <button type="submit" class="btn btn-danger">Yes, delete role</button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
-
 <script>
-// Prevent form resubmission on page refresh
-if (window.history.replaceState) {
-    window.history.replaceState(null, null, 'dashboard.php?page=roles');
-}
-
-// Confirm delete role
-function confirmDeleteRole(roleId, roleName) {
-    document.getElementById('deleteRoleName').textContent = roleName;
-    document.getElementById('deleteRoleForm').action = `dashboard.php?page=roles&action=delete&id=${roleId}`;
-    const modal = new bootstrap.Modal(document.getElementById('deleteRoleModal'));
-    modal.show();
-}
-
-// Enhanced form validation and functionality
+// Enhanced role management JavaScript
 document.addEventListener('DOMContentLoaded', function() {
-    const roleForm = document.getElementById('roleForm');
-    if (roleForm) {
-        // Form validation
-        roleForm.addEventListener('submit', function(e) {
-            // Check if at least one permission is selected
-            const permissionCheckboxes = roleForm.querySelectorAll('input[name="permissions[]"]');
-            if (permissionCheckboxes.length > 0) {
-                const checkedPermissions = roleForm.querySelectorAll('input[name="permissions[]"]:checked');
-                if (checkedPermissions.length === 0) {
-                    e.preventDefault();
-                    showMessage('danger', 'Please select at least one permission for this role.');
-                    return;
-                }
-            }
+    // Initialize category toggles
+    initializeCategoryToggles();
+    
+    // Initialize permission search
+    initializePermissionSearch();
+    
+    // Initialize form validation
+    initializeFormValidation();
+});
+
+function initializeCategoryToggles() {
+    const categoryToggles = document.querySelectorAll('.category-toggle');
+    categoryToggles.forEach(toggle => {
+        const categoryName = toggle.dataset.category;
+        const categoryDiv = document.querySelector(`[data-category="${categoryName}"]`);
+        
+        if (categoryDiv) {
+            const checkboxes = categoryDiv.querySelectorAll('.permission-checkbox');
             
-            // Validate required fields
-            const requiredFields = roleForm.querySelectorAll('[required]');
-            let isValid = true;
+            // Set initial state
+            updateToggleState(toggle, checkboxes);
             
-            requiredFields.forEach(field => {
-                if (!field.value.trim()) {
-                    field.classList.add('is-invalid');
-                    isValid = false;
-                } else {
-                    field.classList.remove('is-invalid');
-                }
+            // Handle toggle change
+            toggle.addEventListener('change', function() {
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = this.checked;
+                });
             });
             
-            if (!isValid) {
-                e.preventDefault();
-                showMessage('danger', 'Please fill in all required fields.');
-            }
-        });
-    }
+            // Update toggle when individual checkboxes change
+            checkboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    updateToggleState(toggle, checkboxes);
+                });
+            });
+        }
+    });
+}
+
+function updateToggleState(toggle, checkboxes) {
+    const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+    const totalCount = checkboxes.length;
     
-    // Permission search functionality
-    const permissionSearch = document.getElementById('permissionSearch');
-    if (permissionSearch) {
-        permissionSearch.addEventListener('input', function() {
+    if (checkedCount === 0) {
+        toggle.checked = false;
+        toggle.indeterminate = false;
+    } else if (checkedCount === totalCount) {
+        toggle.checked = true;
+        toggle.indeterminate = false;
+    } else {
+        toggle.checked = false;
+        toggle.indeterminate = true;
+    }
+}
+
+function initializePermissionSearch() {
+    const searchInput = document.getElementById('permissionSearch');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
             const searchTerm = this.value.toLowerCase();
             const permissionItems = document.querySelectorAll('.permission-item');
             const categories = document.querySelectorAll('.permission-category');
@@ -1093,118 +1006,165 @@ document.addEventListener('DOMContentLoaded', function() {
                 item.style.display = shouldShow ? 'block' : 'none';
             });
             
-            // Hide categories that have no visible permissions
+            // Hide categories with no visible permissions
             categories.forEach(category => {
-                const visibleItems = category.querySelectorAll('.permission-item[style*="display: block"], .permission-item:not([style*="display: none"])');
+                const visibleItems = category.querySelectorAll('.permission-item:not([style*="display: none"])');
                 category.style.display = visibleItems.length > 0 ? 'block' : 'none';
             });
         });
     }
-    
-    // Category toggle functionality
-    const categoryToggles = document.querySelectorAll('.category-toggle');
-    categoryToggles.forEach(toggle => {
-        const categoryName = toggle.dataset.category;
-        const categoryDiv = document.querySelector(`[data-category="${categoryName}"]`);
-        
-        if (categoryDiv) {
-            const checkboxes = categoryDiv.querySelectorAll('.permission-checkbox');
-            
-            // Set initial state of toggle based on selected checkboxes
-            const checkedCount = categoryDiv.querySelectorAll('.permission-checkbox:checked').length;
-            const totalCount = checkboxes.length;
-            
-            if (checkedCount === totalCount && totalCount > 0) {
-                toggle.checked = true;
-            } else if (checkedCount > 0) {
-                toggle.indeterminate = true;
-            }
-            
-            // Handle toggle change
-            toggle.addEventListener('change', function() {
-                checkboxes.forEach(checkbox => {
-                    checkbox.checked = this.checked;
-                });
-                this.indeterminate = false;
-            });
-            
-            // Update toggle state when individual checkboxes change
-            checkboxes.forEach(checkbox => {
-                checkbox.addEventListener('change', function() {
-                    const checkedCount = categoryDiv.querySelectorAll('.permission-checkbox:checked').length;
-                    const totalCount = checkboxes.length;
-                    
-                    if (checkedCount === 0) {
-                        toggle.checked = false;
-                        toggle.indeterminate = false;
-                    } else if (checkedCount === totalCount) {
-                        toggle.checked = true;
-                        toggle.indeterminate = false;
-                    } else {
-                        toggle.checked = false;
-                        toggle.indeterminate = true;
-                    }
-                });
-            });
-        }
-    });
-    
-    // Handle "select all" functionality for full access permission
-    const fullAccessCheckbox = document.querySelector('input[value="all"]');
-    const otherCheckboxes = document.querySelectorAll('input[name="permissions[]"]:not([value="all"])');
-    
-    if (fullAccessCheckbox) {
-        fullAccessCheckbox.addEventListener('change', function() {
-            if (this.checked) {
-                otherCheckboxes.forEach(cb => {
-                    cb.checked = false;
-                    cb.disabled = true;
-                });
-                // Also disable category toggles
-                categoryToggles.forEach(toggle => {
-                    toggle.checked = false;
-                    toggle.disabled = true;
-                });
-            } else {
-                otherCheckboxes.forEach(cb => {
-                    cb.disabled = false;
-                });
-                categoryToggles.forEach(toggle => {
-                    toggle.disabled = false;
-                });
+}
+
+function initializeFormValidation() {
+    const roleForm = document.getElementById('roleForm');
+    if (roleForm) {
+        roleForm.addEventListener('submit', function(e) {
+            const permissionCheckboxes = roleForm.querySelectorAll('input[name="permissions[]"]');
+            if (permissionCheckboxes.length > 0) {
+                const checkedPermissions = roleForm.querySelectorAll('input[name="permissions[]"]:checked');
+                if (checkedPermissions.length === 0) {
+                    e.preventDefault();
+                    showMessage('danger', 'Please select at least one permission for this role.');
+                    return;
+                }
             }
         });
-        
-        // Initial state
-        if (fullAccessCheckbox.checked) {
-            otherCheckboxes.forEach(cb => {
-                cb.disabled = true;
-            });
-            categoryToggles.forEach(toggle => {
-                toggle.disabled = true;
-            });
-        }
+    }
+}
+
+function addNewPermission() {
+    const input = document.getElementById('newPermissionInput');
+    const permission = input.value.trim();
+    
+    if (!permission) {
+        showMessage('warning', 'Please enter a permission name.');
+        return;
     }
     
-    // Initialize tooltips
-    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-    tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl);
-    });
+    if (!/^[a-z_]+$/.test(permission)) {
+        showMessage('danger', 'Permission name can only contain lowercase letters and underscores.');
+        return;
+    }
     
-    // Add input event listeners to remove invalid class when user starts typing
-    const inputs = document.querySelectorAll('input[required], select[required], textarea[required]');
-    inputs.forEach(input => {
-        input.addEventListener('input', function() {
-            if (this.value.trim()) {
-                this.classList.remove('is-invalid');
-            }
-        });
-    });
-});
+    // Check if permission already exists
+    const existingCheckboxes = document.querySelectorAll('input[name="permissions[]"]');
+    const existingPermissions = Array.from(existingCheckboxes).map(cb => cb.value);
+    
+    if (existingPermissions.includes(permission)) {
+        showMessage('warning', 'Permission already exists.');
+        return;
+    }
+    
+    // Add to "Other Permissions" category or create new category
+    let otherCategory = document.querySelector('[data-category="other_permissions"]');
+    if (!otherCategory) {
+        // Create new category
+        const categoriesContainer = document.querySelector('.card-body');
+        const newCategoryHTML = `
+            <div class="mb-4 permission-category">
+                <div class="d-flex align-items-center mb-3">
+                    <h5 class="mb-0 me-3">Custom Permissions</h5>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input category-toggle" type="checkbox" data-category="custom_permissions">
+                        <label class="form-check-label text-muted">Select All</label>
+                    </div>
+                </div>
+                <div class="row" data-category="custom_permissions">
+                </div>
+            </div>
+        `;
+        categoriesContainer.insertAdjacentHTML('beforeend', newCategoryHTML);
+        otherCategory = document.querySelector('[data-category="custom_permissions"]');
+        
+        // Reinitialize toggles for new category
+        initializeCategoryToggles();
+    }
+    
+    // Add the new permission
+    const permissionHTML = `
+        <div class="col-md-6 col-lg-4 permission-item">
+            <label class="form-check">
+                <input type="checkbox" name="permissions[]" value="${permission}" class="form-check-input permission-checkbox" checked>
+                <span class="form-check-label">
+                    <strong>${permission.charAt(0).toUpperCase() + permission.slice(1).replace(/_/g, ' ')}</strong>
+                    <small class="text-muted d-block">${permission}</small>
+                </span>
+            </label>
+        </div>
+    `;
+    
+    otherCategory.insertAdjacentHTML('beforeend', permissionHTML);
+    
+    // Clear input
+    input.value = '';
+    
+    // Show success message
+    showMessage('success', `Permission "${permission}" added successfully!`);
+    
+    // Reinitialize functionality for new elements
+    initializeCategoryToggles();
+    initializePermissionSearch();
+}
 
-// Enhanced message display function
+function showPermissionDetails(permissionsJson) {
+    try {
+        const permissions = JSON.parse(permissionsJson);
+        const permissionList = permissions.map(p => 
+            `<span class="badge bg-blue-lt me-1 mb-1">${p.charAt(0).toUpperCase() + p.slice(1).replace(/_/g, ' ')}</span>`
+        ).join('');
+        
+        createTablerPopup('Role Permissions', `
+            <div class="mb-3">
+                <h5>All Permissions (${permissions.length})</h5>
+                <div class="mt-2">
+                    ${permissionList}
+                </div>
+            </div>
+            <button class="btn btn-secondary" onclick="closeTablerPopup()">Close</button>
+        `);
+    } catch (e) {
+        showMessage('danger', 'Error displaying permissions.');
+    }
+}
+
+function confirmDeleteRole(roleId, roleName) {
+    createTablerPopup('Confirm Deletion', `
+        <div class="text-center">
+            <div class="mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-danger" width="64" height="64" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                    <path d="M12 9v2m0 4v.01"/>
+                    <path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75"/>
+                </svg>
+            </div>
+            <h3>Delete Role?</h3>
+            <p class="text-muted">Are you sure you want to delete role "${roleName}"?<br>This action cannot be undone.</p>
+            <div class="btn-list">
+                <button class="btn btn-danger" onclick="deleteRole(${roleId})">Yes, delete</button>
+                <button class="btn btn-outline-secondary" onclick="closeTablerPopup()">Cancel</button>
+            </div>
+        </div>
+    `);
+}
+
+function deleteRole(roleId) {
+    // Create form and submit
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `dashboard.php?page=roles&action=delete&id=${roleId}`;
+    
+    const csrfToken = document.createElement('input');
+    csrfToken.type = 'hidden';
+    csrfToken.name = 'csrf_token';
+    csrfToken.value = '<?php echo generate_csrf_token(); ?>';
+    
+    form.appendChild(csrfToken);
+    document.body.appendChild(form);
+    form.submit();
+}
+
 function showMessage(type, message) {
+    // Remove existing messages
     const existingMessages = document.querySelectorAll('.alert.auto-message');
     existingMessages.forEach(msg => msg.remove());
     
@@ -1239,22 +1199,4 @@ function showMessage(type, message) {
         }
     }, 5000);
 }
-
-// Auto-hide alerts
-document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(function() {
-        const alerts = document.querySelectorAll('.alert:not(.auto-message)');
-        alerts.forEach(function(alert) {
-            if (alert.classList.contains('alert-dismissible')) {
-                alert.style.transition = 'opacity 0.5s';
-                alert.style.opacity = '0';
-                setTimeout(function() {
-                    if (alert.parentNode) {
-                        alert.remove();
-                    }
-                }, 500);
-            }
-        });
-    }, 5000);
-});
 </script>
