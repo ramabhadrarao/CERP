@@ -1,5 +1,5 @@
 <?php
-// pages/roles.php - Complete Role Management System
+// pages/roles.php - Enhanced Role Management System for new schema
 
 // Check if user has admin permission
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
@@ -21,30 +21,6 @@ if (isset($_GET['success'])) {
 if (isset($_GET['error'])) {
     $error = sanitize_input($_GET['error']);
 }
-
-// Available permissions for the system
-$available_permissions = [
-    'all' => 'Full System Access (Super Admin)',
-    'manage_users' => 'Manage Users',
-    'manage_roles' => 'Manage Roles & Permissions',
-    'manage_students' => 'Manage Students',
-    'view_students' => 'View Students',
-    'manage_faculty' => 'Manage Faculty',
-    'view_faculty' => 'View Faculty',
-    'manage_courses' => 'Manage Courses',
-    'view_courses' => 'View Courses',
-    'grade_students' => 'Grade Students',
-    'view_grades' => 'View Grades',
-    'manage_departments' => 'Manage Departments',
-    'view_reports' => 'View Reports',
-    'generate_reports' => 'Generate Reports',
-    'view_announcements' => 'View Announcements',
-    'manage_announcements' => 'Manage Announcements',
-    'view_profile' => 'View Own Profile',
-    'edit_profile' => 'Edit Own Profile',
-    'view_student_progress' => 'View Student Progress (Parents)',
-    'system_settings' => 'System Settings'
-];
 
 // Handle form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -86,7 +62,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Get all roles for listing
+// Enhanced available permissions for the new comprehensive system
+$available_permissions = [
+    // System Administration
+    'all' => 'Full System Access (Super Admin)',
+    'manage_users' => 'Manage Users',
+    'manage_roles' => 'Manage Roles & Permissions',
+    'system_settings' => 'System Settings',
+    'view_audit_logs' => 'View Audit Logs',
+    
+    // Academic Structure Management
+    'manage_college' => 'Manage College Information',
+    'manage_departments' => 'Manage Departments',
+    'manage_programs' => 'Manage Programs',
+    'manage_branches' => 'Manage Branches',
+    'manage_regulations' => 'Manage Regulations',
+    'manage_academic_years' => 'Manage Academic Years',
+    'manage_batches' => 'Manage Batches',
+    'manage_semesters' => 'Manage Semesters',
+    
+    // Student Management
+    'manage_students' => 'Manage Students',
+    'view_students' => 'View Students',
+    'manage_student_registrations' => 'Manage Student Course Registrations',
+    'view_student_registrations' => 'View Student Course Registrations',
+    'manage_student_documents' => 'Manage Student Documents',
+    'view_student_documents' => 'View Student Documents',
+    
+    // Faculty Management
+    'manage_faculty' => 'Manage Faculty',
+    'view_faculty' => 'View Faculty',
+    'manage_faculty_assignments' => 'Manage Faculty Course Assignments',
+    'view_faculty_assignments' => 'View Faculty Course Assignments',
+    'manage_faculty_qualifications' => 'Manage Faculty Qualifications',
+    
+    // Course Management
+    'manage_courses' => 'Manage Courses',
+    'view_courses' => 'View Courses',
+    'manage_course_prerequisites' => 'Manage Course Prerequisites',
+    'manage_electives' => 'Manage Elective Groups',
+    'view_electives' => 'View Elective Groups',
+    
+    // Assessment & Marks
+    'manage_assessments' => 'Manage Assessment Components',
+    'grade_students' => 'Grade Students',
+    'view_grades' => 'View Grades',
+    'lock_unlock_marks' => 'Lock/Unlock Marks',
+    'verify_marks' => 'Verify Marks',
+    
+    // Attendance Management
+    'manage_class_schedule' => 'Manage Class Schedule',
+    'mark_attendance' => 'Mark Attendance',
+    'view_attendance' => 'View Attendance',
+    'generate_attendance_reports' => 'Generate Attendance Reports',
+    
+    // Research & Publications (Faculty)
+    'manage_publications' => 'Manage Research Publications',
+    'view_publications' => 'View Research Publications',
+    
+    // Reporting & Analytics
+    'view_reports' => 'View Reports',
+    'generate_reports' => 'Generate Reports',
+    'view_analytics' => 'View Analytics Dashboard',
+    'export_data' => 'Export System Data',
+    
+    // Notifications & Communications
+    'manage_notifications' => 'Manage System Notifications',
+    'send_announcements' => 'Send Announcements',
+    'view_announcements' => 'View Announcements',
+    
+    // Profile & Personal
+    'view_profile' => 'View Own Profile',
+    'edit_profile' => 'Edit Own Profile',
+    'change_password' => 'Change Own Password',
+    
+    // Parent-specific permissions
+    'view_ward_progress' => 'View Ward Progress (Parents)',
+    'view_ward_attendance' => 'View Ward Attendance (Parents)',
+    
+    // Student-specific permissions
+    'course_registration' => 'Course Registration (Students)',
+    'select_electives' => 'Select Electives (Students)',
+    'view_own_grades' => 'View Own Grades (Students)',
+    'view_own_attendance' => 'View Own Attendance (Students)',
+    
+    // Staff-specific permissions
+    'data_entry' => 'Data Entry Operations',
+    'manage_records' => 'Manage Administrative Records'
+];
+
+// Get all roles for listing with enhanced query
 function get_all_roles() {
     global $pdo;
     try {
@@ -98,13 +163,21 @@ function get_all_roles() {
             LEFT JOIN users u ON r.id = u.role_id 
             GROUP BY r.id
             ORDER BY 
+                CASE 
+                    WHEN r.is_system_role = 1 THEN 1
+                    ELSE 2
+                END,
                 CASE r.name 
                     WHEN 'super_admin' THEN 1
-                    WHEN 'head_of_department' THEN 2
-                    WHEN 'faculty' THEN 3
-                    WHEN 'parent' THEN 4
-                    WHEN 'student' THEN 5
-                    ELSE 6
+                    WHEN 'admin' THEN 2
+                    WHEN 'principal' THEN 3
+                    WHEN 'hod' THEN 4
+                    WHEN 'faculty' THEN 5
+                    WHEN 'student' THEN 6
+                    WHEN 'parent' THEN 7
+                    WHEN 'staff' THEN 8
+                    WHEN 'guest' THEN 9
+                    ELSE 10
                 END, r.name
         ");
         return $stmt->fetchAll();
@@ -114,7 +187,7 @@ function get_all_roles() {
     }
 }
 
-// Get single role for editing
+// Get single role for editing with enhanced query
 function get_role_by_id($id) {
     global $pdo;
     try {
@@ -127,7 +200,7 @@ function get_role_by_id($id) {
     }
 }
 
-// Handle add role
+// Enhanced handle add role function
 function handle_add_role($data) {
     global $pdo;
     
@@ -150,6 +223,12 @@ function handle_add_role($data) {
         $errors[] = "At least one permission must be selected.";
     }
     
+    // Check if it's a system role name
+    $system_role_names = ['super_admin', 'admin', 'principal', 'hod', 'faculty', 'student', 'parent', 'staff', 'guest'];
+    if (in_array($data['name'], $system_role_names)) {
+        $errors[] = "Cannot create custom role with system role name.";
+    }
+    
     if (!empty($errors)) {
         return ['success' => false, 'message' => implode('<br>', $errors)];
     }
@@ -164,14 +243,16 @@ function handle_add_role($data) {
         
         // Insert new role
         $stmt = $pdo->prepare("
-            INSERT INTO roles (name, description, permissions) 
-            VALUES (?, ?, ?)
+            INSERT INTO roles (name, description, permissions, is_system_role, status) 
+            VALUES (?, ?, ?, ?, ?)
         ");
         
         $result = $stmt->execute([
             $data['name'],
             $data['description'],
-            json_encode($data['permissions'])
+            json_encode($data['permissions']),
+            0, // Custom roles are not system roles
+            $data['status'] ?? 'active'
         ]);
         
         if ($result) {
@@ -181,7 +262,8 @@ function handle_add_role($data) {
             log_audit($_SESSION['user_id'], 'create_role', 'roles', $new_role_id, null, [
                 'name' => $data['name'],
                 'description' => $data['description'],
-                'permissions' => $data['permissions']
+                'permissions' => $data['permissions'],
+                'is_system_role' => 0
             ]);
             
             return ['success' => true, 'message' => 'Role created successfully.'];
@@ -195,7 +277,7 @@ function handle_add_role($data) {
     }
 }
 
-// Handle edit role
+// Enhanced handle edit role function
 function handle_edit_role($id, $data) {
     global $pdo;
     
@@ -203,10 +285,15 @@ function handle_edit_role($id, $data) {
         return ['success' => false, 'message' => 'Invalid role ID.'];
     }
     
-    // Prevent editing super_admin role
+    // Get current role to check if it's a system role
     $current_role = get_role_by_id($id);
-    if ($current_role && $current_role['name'] === 'super_admin') {
-        return ['success' => false, 'message' => 'Super admin role cannot be modified.'];
+    if (!$current_role) {
+        return ['success' => false, 'message' => 'Role not found.'];
+    }
+    
+    // Prevent editing critical system roles
+    if ($current_role['is_system_role'] && in_array($current_role['name'], ['super_admin', 'admin'])) {
+        return ['success' => false, 'message' => 'Critical system roles cannot be modified.'];
     }
     
     // Validate input
@@ -225,28 +312,38 @@ function handle_edit_role($id, $data) {
     }
     
     try {
-        // Get old values for audit
-        $old_role = get_role_by_id($id);
-        if (!$old_role) {
-            return ['success' => false, 'message' => 'Role not found.'];
-        }
-        
         // Update role (name is immutable for system roles)
-        $stmt = $pdo->prepare("
-            UPDATE roles 
-            SET description = ?, permissions = ? 
-            WHERE id = ?
-        ");
-        
-        $result = $stmt->execute([
-            $data['description'],
-            json_encode($data['permissions']),
-            $id
-        ]);
+        if ($current_role['is_system_role']) {
+            $stmt = $pdo->prepare("
+                UPDATE roles 
+                SET description = ?, permissions = ?, status = ?
+                WHERE id = ?
+            ");
+            $result = $stmt->execute([
+                $data['description'],
+                json_encode($data['permissions']),
+                $data['status'] ?? $current_role['status'],
+                $id
+            ]);
+        } else {
+            // For custom roles, allow name changes
+            $stmt = $pdo->prepare("
+                UPDATE roles 
+                SET name = ?, description = ?, permissions = ?, status = ?
+                WHERE id = ?
+            ");
+            $result = $stmt->execute([
+                $data['name'] ?? $current_role['name'],
+                $data['description'],
+                json_encode($data['permissions']),
+                $data['status'] ?? $current_role['status'],
+                $id
+            ]);
+        }
         
         if ($result) {
             // Log the action
-            log_audit($_SESSION['user_id'], 'update_role', 'roles', $id, $old_role, $data);
+            log_audit($_SESSION['user_id'], 'update_role', 'roles', $id, $current_role, $data);
             
             return ['success' => true, 'message' => 'Role updated successfully.'];
         } else {
@@ -259,7 +356,7 @@ function handle_edit_role($id, $data) {
     }
 }
 
-// Handle delete role
+// Enhanced handle delete role function
 function handle_delete_role($id) {
     global $pdo;
     
@@ -275,8 +372,7 @@ function handle_delete_role($id) {
         }
         
         // Prevent deleting system roles
-        $system_roles = ['super_admin', 'head_of_department', 'faculty', 'parent', 'student'];
-        if (in_array($role['name'], $system_roles)) {
+        if ($role['is_system_role']) {
             return ['success' => false, 'message' => 'System roles cannot be deleted.'];
         }
         
@@ -396,22 +492,59 @@ if ($action === 'edit' && $role_id) {
             </div>
             
             <div class="mb-3">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select">
+                    <option value="active" <?php echo (($_POST['status'] ?? 'active') === 'active') ? 'selected' : ''; ?>>Active</option>
+                    <option value="inactive" <?php echo (($_POST['status'] ?? '') === 'inactive') ? 'selected' : ''; ?>>Inactive</option>
+                </select>
+            </div>
+            
+            <div class="mb-3">
                 <label class="form-label required">Permissions</label>
-                <div class="row">
-                    <?php foreach ($available_permissions as $perm => $desc): ?>
-                    <div class="col-md-6 col-lg-4">
-                        <label class="form-check">
-                            <input type="checkbox" name="permissions[]" value="<?php echo $perm; ?>" class="form-check-input"
-                                   <?php echo (isset($_POST['permissions']) && in_array($perm, $_POST['permissions'])) ? 'checked' : ''; ?>>
-                            <span class="form-check-label">
-                                <strong><?php echo htmlspecialchars($desc); ?></strong>
-                                <small class="text-muted d-block"><?php echo $perm; ?></small>
-                            </span>
-                        </label>
+                <div class="card">
+                    <div class="card-body">
+                        <!-- Permission categories with enhanced grouping -->
+                        <?php 
+                        $permission_categories = [
+                            'System Administration' => ['all', 'manage_users', 'manage_roles', 'system_settings', 'view_audit_logs'],
+                            'Academic Structure' => ['manage_college', 'manage_departments', 'manage_programs', 'manage_branches', 'manage_regulations', 'manage_academic_years', 'manage_batches', 'manage_semesters'],
+                            'Student Management' => ['manage_students', 'view_students', 'manage_student_registrations', 'view_student_registrations', 'manage_student_documents', 'view_student_documents'],
+                            'Faculty Management' => ['manage_faculty', 'view_faculty', 'manage_faculty_assignments', 'view_faculty_assignments', 'manage_faculty_qualifications'],
+                            'Course Management' => ['manage_courses', 'view_courses', 'manage_course_prerequisites', 'manage_electives', 'view_electives'],
+                            'Assessment & Marks' => ['manage_assessments', 'grade_students', 'view_grades', 'lock_unlock_marks', 'verify_marks'],
+                            'Attendance' => ['manage_class_schedule', 'mark_attendance', 'view_attendance', 'generate_attendance_reports'],
+                            'Research & Publications' => ['manage_publications', 'view_publications'],
+                            'Reporting & Analytics' => ['view_reports', 'generate_reports', 'view_analytics', 'export_data'],
+                            'Communications' => ['manage_notifications', 'send_announcements', 'view_announcements'],
+                            'Personal Access' => ['view_profile', 'edit_profile', 'change_password'],
+                            'Role-Specific' => ['view_ward_progress', 'view_ward_attendance', 'course_registration', 'select_electives', 'view_own_grades', 'view_own_attendance', 'data_entry', 'manage_records']
+                        ];
+                        
+                        foreach ($permission_categories as $category => $perms): ?>
+                        <div class="mb-4">
+                            <h5 class="mb-3"><?php echo htmlspecialchars($category); ?></h5>
+                            <div class="row">
+                                <?php foreach ($perms as $perm): ?>
+                                    <?php if (isset($available_permissions[$perm])): ?>
+                                    <div class="col-md-6 col-lg-4">
+                                        <label class="form-check">
+                                            <input type="checkbox" name="permissions[]" value="<?php echo $perm; ?>" class="form-check-input"
+                                                   <?php echo (isset($_POST['permissions']) && in_array($perm, $_POST['permissions'])) ? 'checked' : ''; ?>>
+                                            <span class="form-check-label">
+                                                <strong><?php echo htmlspecialchars($available_permissions[$perm]); ?></strong>
+                                                <small class="text-muted d-block"><?php echo $perm; ?></small>
+                                            </span>
+                                        </label>
+                                    </div>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                        
+                        <div class="form-hint">Select all permissions this role should have. "Full System Access" grants all permissions.</div>
                     </div>
-                    <?php endforeach; ?>
                 </div>
-                <div class="form-hint">Select all permissions this role should have. "Full System Access" grants all permissions.</div>
             </div>
             
             <div class="form-footer">
@@ -444,12 +577,13 @@ if ($action === 'edit' && $role_id) {
         </div>
     </div>
     <div class="card-body">
-        <?php if ($edit_role['name'] === 'super_admin'): ?>
+        <?php if ($edit_role['is_system_role'] && in_array($edit_role['name'], ['super_admin', 'admin'])): ?>
         <div class="alert alert-warning">
-            <h4>System Role</h4>
-            <p>The super admin role cannot be modified as it's a core system role with full access.</p>
+            <h4>Critical System Role</h4>
+            <p>This is a critical system role that cannot be modified to maintain system security and stability.</p>
         </div>
         <a href="dashboard.php?page=roles" class="btn btn-secondary">Back to Roles</a>
+        
         <?php else: ?>
         <form method="POST" action="dashboard.php?page=roles&action=edit&id=<?php echo $edit_role['id']; ?>">
             <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
@@ -459,7 +593,13 @@ if ($action === 'edit' && $role_id) {
                     <div class="mb-3">
                         <label class="form-label">Role Name</label>
                         <input type="text" class="form-control" value="<?php echo htmlspecialchars($edit_role['name']); ?>" readonly>
-                        <div class="form-hint">Role names cannot be changed after creation.</div>
+                        <div class="form-hint">
+                            <?php if ($edit_role['is_system_role']): ?>
+                                System role names cannot be changed.
+                            <?php else: ?>
+                                Role names cannot be changed after creation.
+                            <?php endif; ?>
+                        </div>
                     </div>
                 </div>
                 <div class="col-md-6">
@@ -472,24 +612,45 @@ if ($action === 'edit' && $role_id) {
             </div>
             
             <div class="mb-3">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select">
+                    <option value="active" <?php echo (($_POST['status'] ?? $edit_role['status']) === 'active') ? 'selected' : ''; ?>>Active</option>
+                    <option value="inactive" <?php echo (($_POST['status'] ?? $edit_role['status']) === 'inactive') ? 'selected' : ''; ?>>Inactive</option>
+                </select>
+            </div>
+            
+            <div class="mb-3">
                 <label class="form-label required">Permissions</label>
                 <?php 
                 $current_permissions = json_decode($edit_role['permissions'], true) ?: [];
                 $selected_permissions = $_POST['permissions'] ?? $current_permissions;
                 ?>
-                <div class="row">
-                    <?php foreach ($available_permissions as $perm => $desc): ?>
-                    <div class="col-md-6 col-lg-4">
-                        <label class="form-check">
-                            <input type="checkbox" name="permissions[]" value="<?php echo $perm; ?>" class="form-check-input"
-                                   <?php echo in_array($perm, $selected_permissions) ? 'checked' : ''; ?>>
-                            <span class="form-check-label">
-                                <strong><?php echo htmlspecialchars($desc); ?></strong>
-                                <small class="text-muted d-block"><?php echo $perm; ?></small>
-                            </span>
-                        </label>
+                
+                <div class="card">
+                    <div class="card-body">
+                        <!-- Permission categories -->
+                        <?php foreach ($permission_categories as $category => $perms): ?>
+                        <div class="mb-4">
+                            <h5 class="mb-3"><?php echo htmlspecialchars($category); ?></h5>
+                            <div class="row">
+                                <?php foreach ($perms as $perm): ?>
+                                    <?php if (isset($available_permissions[$perm])): ?>
+                                    <div class="col-md-6 col-lg-4">
+                                        <label class="form-check">
+                                            <input type="checkbox" name="permissions[]" value="<?php echo $perm; ?>" class="form-check-input"
+                                                   <?php echo in_array($perm, $selected_permissions) ? 'checked' : ''; ?>>
+                                            <span class="form-check-label">
+                                                <strong><?php echo htmlspecialchars($available_permissions[$perm]); ?></strong>
+                                                <small class="text-muted d-block"><?php echo $perm; ?></small>
+                                            </span>
+                                        </label>
+                                    </div>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
                     </div>
-                    <?php endforeach; ?>
                 </div>
             </div>
             
@@ -510,7 +671,7 @@ if ($action === 'edit' && $role_id) {
 </div>
 
 <?php else: ?>
-<!-- Roles List -->
+<!-- Enhanced Roles List -->
 <div class="card">
     <div class="card-header">
         <h3 class="card-title">Role Management</h3>
@@ -533,8 +694,10 @@ if ($action === 'edit' && $role_id) {
                 <tr>
                     <th>Role</th>
                     <th>Description</th>
+                    <th>Type</th>
                     <th>Permissions</th>
                     <th>Users</th>
+                    <th>Status</th>
                     <th>Created</th>
                     <th class="w-1">Actions</th>
                 </tr>
@@ -544,13 +707,12 @@ if ($action === 'edit' && $role_id) {
                     <?php foreach ($roles as $role): ?>
                     <?php
                     $permissions = json_decode($role['permissions'], true) ?: [];
-                    $is_system_role = in_array($role['name'], ['super_admin', 'head_of_department', 'faculty', 'parent', 'student']);
                     ?>
                     <tr>
                         <td>
                             <div class="d-flex align-items-center">
                                 <div class="me-3">
-                                    <?php if ($is_system_role): ?>
+                                    <?php if ($role['is_system_role']): ?>
                                     <span class="avatar bg-blue text-white">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <path d="M12 1l3 6 6 .75-4.12 4.62L17.75 19 12 16l-5.75 3 .87-6.63L3 7.75 9 7z"/>
@@ -568,9 +730,6 @@ if ($action === 'edit' && $role_id) {
                                 <div>
                                     <div class="font-weight-medium">
                                         <?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $role['name']))); ?>
-                                        <?php if ($is_system_role): ?>
-                                            <span class="badge bg-blue-lt ms-1">System</span>
-                                        <?php endif; ?>
                                     </div>
                                     <div class="text-muted small"><?php echo htmlspecialchars($role['name']); ?></div>
                                 </div>
@@ -578,6 +737,13 @@ if ($action === 'edit' && $role_id) {
                         </td>
                         <td class="text-muted">
                             <?php echo htmlspecialchars($role['description']); ?>
+                        </td>
+                        <td>
+                            <?php if ($role['is_system_role']): ?>
+                                <span class="badge bg-blue">System Role</span>
+                            <?php else: ?>
+                                <span class="badge bg-green">Custom Role</span>
+                            <?php endif; ?>
                         </td>
                         <td>
                             <div class="d-flex flex-wrap gap-1">
@@ -619,6 +785,18 @@ if ($action === 'edit' && $role_id) {
                                 <span class="text-muted">No users</span>
                             <?php endif; ?>
                         </td>
+                        <td>
+                            <?php
+                            $status_class = match($role['status']) {
+                                'active' => 'bg-green',
+                                'inactive' => 'bg-gray',
+                                default => 'bg-gray'
+                            };
+                            ?>
+                            <span class="badge <?php echo $status_class; ?>">
+                                <?php echo ucfirst($role['status']); ?>
+                            </span>
+                        </td>
                         <td class="text-muted">
                             <?php echo date('M j, Y', strtotime($role['created_at'])); ?>
                         </td>
@@ -631,7 +809,7 @@ if ($action === 'edit' && $role_id) {
                                     </svg>
                                 </a>
                                 
-                                <?php if (!$is_system_role): ?>
+                                <?php if (!$role['is_system_role']): ?>
                                 <div class="dropdown">
                                     <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
                                         Actions
@@ -668,7 +846,7 @@ if ($action === 'edit' && $role_id) {
                     <?php endforeach; ?>
                 <?php else: ?>
                     <tr>
-                        <td colspan="6" class="text-center text-muted py-4">
+                        <td colspan="8" class="text-center text-muted py-4">
                             No roles found. <a href="dashboard.php?page=roles&action=add">Create the first custom role</a>.
                         </td>
                     </tr>
@@ -678,7 +856,7 @@ if ($action === 'edit' && $role_id) {
     </div>
 </div>
 
-<!-- Role Statistics -->
+<!-- Enhanced Role Statistics -->
 <div class="row row-cards mt-3">
     <div class="col-sm-6 col-lg-3">
         <div class="card">
@@ -699,7 +877,7 @@ if ($action === 'edit' && $role_id) {
                 <div class="d-flex align-items-center">
                     <div class="subheader">System Roles</div>
                 </div>
-                <div class="h1 mb-3"><?php echo count(array_filter($roles, fn($r) => in_array($r['name'], ['super_admin', 'head_of_department', 'faculty', 'parent', 'student']))); ?></div>
+                <div class="h1 mb-3"><?php echo count(array_filter($roles, fn($r) => $r['is_system_role'])); ?></div>
                 <div class="d-flex mb-2">
                     <div>Built-in roles</div>
                 </div>
@@ -712,7 +890,7 @@ if ($action === 'edit' && $role_id) {
                 <div class="d-flex align-items-center">
                     <div class="subheader">Custom Roles</div>
                 </div>
-                <div class="h1 mb-3"><?php echo count(array_filter($roles, fn($r) => !in_array($r['name'], ['super_admin', 'head_of_department', 'faculty', 'parent', 'student']))); ?></div>
+                <div class="h1 mb-3"><?php echo count(array_filter($roles, fn($r) => !$r['is_system_role'])); ?></div>
                 <div class="d-flex mb-2">
                     <div>User-created roles</div>
                 </div>
@@ -723,11 +901,11 @@ if ($action === 'edit' && $role_id) {
         <div class="card">
             <div class="card-body">
                 <div class="d-flex align-items-center">
-                    <div class="subheader">Assigned Users</div>
+                    <div class="subheader">Active Roles</div>
                 </div>
-                <div class="h1 mb-3"><?php echo array_sum(array_column($roles, 'user_count')); ?></div>
+                <div class="h1 mb-3"><?php echo count(array_filter($roles, fn($r) => $r['status'] === 'active')); ?></div>
                 <div class="d-flex mb-2">
-                    <div>Total role assignments</div>
+                    <div>Currently active</div>
                 </div>
             </div>
         </div>
@@ -768,7 +946,7 @@ function confirmDeleteRole(roleId, roleName) {
     modal.show();
 }
 
-// Form validation
+// Enhanced form validation
 document.addEventListener('DOMContentLoaded', function() {
     const forms = document.querySelectorAll('form');
     forms.forEach(form => {
@@ -809,18 +987,36 @@ document.addEventListener('DOMContentLoaded', function() {
     tooltipTriggerList.map(function (tooltipTriggerEl) {
         return new bootstrap.Tooltip(tooltipTriggerEl);
     });
+    
+    // Handle "select all" functionality for full access permission
+    const fullAccessCheckbox = document.querySelector('input[value="all"]');
+    const otherCheckboxes = document.querySelectorAll('input[name="permissions[]"]:not([value="all"])');
+    
+    if (fullAccessCheckbox) {
+        fullAccessCheckbox.addEventListener('change', function() {
+            if (this.checked) {
+                otherCheckboxes.forEach(cb => {
+                    cb.checked = false;
+                    cb.disabled = true;
+                });
+            } else {
+                otherCheckboxes.forEach(cb => {
+                    cb.disabled = false;
+                });
+            }
+        });
+        
+        // Initial state
+        if (fullAccessCheckbox.checked) {
+            otherCheckboxes.forEach(cb => {
+                cb.disabled = true;
+            });
+        }
+    }
 });
 
-// Show message function
+// Enhanced message display function
 function showMessage(type, message) {
-    // Remove existing messages
-    const existingMessages = document.querySelectorAll('.alert');
-    existingMessages.forEach(msg => {
-        if (msg.classList.contains('alert-dismissible')) {
-            msg.remove();
-        }
-    });
-    
     const alertDiv = document.createElement('div');
     alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
     alertDiv.innerHTML = `
