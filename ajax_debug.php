@@ -1,5 +1,5 @@
 <?php
-// ajax_debug.php - Debug AJAX calls for user management
+// ajax_debug.php - Debug AJAX calls for user management with popup test
 require_once 'config/database.php';
 require_once 'includes/auth.php';
 
@@ -21,6 +21,29 @@ header('Content-Type: application/json');
 
 try {
     switch ($action) {
+        case 'test_popup':
+            // Test popup functionality with proper z-index
+            echo json_encode([
+                'success' => true, 
+                'message' => 'Popup test completed successfully!',
+                'popup_html' => '<div class="alert alert-success">
+                    <h4>✅ Z-Index Test Successful</h4>
+                    <p>This popup appeared on top of all elements including sidebar and header.</p>
+                    <p><strong>Current Z-index hierarchy:</strong></p>
+                    <ul>
+                        <li>Page content: 1</li>
+                        <li>Top header: 1020</li>
+                        <li>Sidebar: 1030</li>
+                        <li>Dropdown menus: 1050</li>
+                        <li>Modal backdrop: 1055</li>
+                        <li>Modals: 1060</li>
+                        <li>Tooltips: 1070</li>
+                        <li>Custom popups: 9999 ✅</li>
+                    </ul>
+                </div>'
+            ]);
+            break;
+            
         case 'toggle_status':
             if (!$user_id || $user_id == $_SESSION['user_id']) {
                 echo json_encode(['success' => false, 'message' => 'Cannot modify this user.']);
