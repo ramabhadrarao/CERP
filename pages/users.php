@@ -1,13 +1,49 @@
 <?php
-// pages/users.php - Fixed User Management System with proper header handling
+// pages/users.php - Fixed User Management System with proper AJAX handling
+
+// Start output buffering to prevent header issues
+ob_start();
 
 // Check if user has admin permission
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
+    ob_end_clean();
     echo '<div class="alert alert-danger">
             <h4>Access Denied</h4>
             <p>You do not have permission to access user management. Only super administrators can manage users.</p>
           </div>';
     return;
+}
+
+// Handle AJAX requests FIRST before any output
+if (isset($_GET['ajax']) && isset($_GET['id'])) {
+    ob_end_clean(); // Clear any output buffer
+    
+    $ajax_user_id = (int)$_GET['id'];
+    
+    if (!verify_csrf_token($_GET['token'] ?? '')) {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'message' => 'Invalid security token.']);
+        exit;
+    }
+    
+    switch ($_GET['ajax']) {
+        case 'toggle_status':
+            $result = toggle_user_status($ajax_user_id);
+            header('Content-Type: application/json');
+            echo json_encode($result);
+            exit;
+            
+        case 'reset_password':
+            $result = reset_user_password($ajax_user_id);
+            header('Content-Type: application/json');
+            echo json_encode($result);
+            exit;
+    }
+    
+    // If we reach here, invalid AJAX action
+    header('Content-Type: application/json');
+    echo json_encode(['success' => false, 'message' => 'Invalid action.']);
+    exit;
 }
 
 // Initialize variables
@@ -30,15 +66,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Invalid request. Please try again.';
     } else {
         // Process form based on action
-        $redirect_url = '';
-        $redirect_message = '';
-        $redirect_error = '';
-        
         switch ($action) {
             case 'add':
                 $result = handle_add_user($_POST);
                 if ($result['success']) {
-                    $redirect_url = 'dashboard.php?page=users&success=' . urlencode($result['message']);
+                    ob_end_clean(); // Clear output buffer before redirect
+                    header('Location: dashboard.php?page=users&success=' . urlencode($result['message']));
+                    exit;
                 } else {
                     $error = $result['message'];
                 }
@@ -47,7 +81,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             case 'edit':
                 $result = handle_edit_user($user_id, $_POST);
                 if ($result['success']) {
-                    $redirect_url = 'dashboard.php?page=users&success=' . urlencode($result['message']);
+                    ob_end_clean(); // Clear output buffer before redirect
+                    header('Location: dashboard.php?page=users&success=' . urlencode($result['message']));
+                    exit;
                 } else {
                     $error = $result['message'];
                 }
@@ -56,59 +92,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             case 'delete':
                 $result = handle_delete_user($user_id);
                 if ($result['success']) {
-                    $redirect_url = 'dashboard.php?page=users&success=' . urlencode($result['message']);
+                    ob_end_clean(); // Clear output buffer before redirect
+                    header('Location: dashboard.php?page=users&success=' . urlencode($result['message']));
+                    exit;
                 } else {
-                    $redirect_url = 'dashboard.php?page=users&error=' . urlencode($result['message']);
+                    ob_end_clean(); // Clear output buffer before redirect
+                    header('Location: dashboard.php?page=users&error=' . urlencode($result['message']));
+                    exit;
                 }
                 break;
                 
             case 'bulk_import':
                 $result = handle_bulk_import_users($_FILES, $_POST);
                 if ($result['success']) {
-                    $redirect_url = 'dashboard.php?page=users&success=' . urlencode($result['message']);
+                    ob_end_clean(); // Clear output buffer before redirect
+                    header('Location: dashboard.php?page=users&success=' . urlencode($result['message']));
+                    exit;
                 } else {
                     $error = $result['message'];
                 }
                 break;
         }
-        
-        // If we have a redirect URL, use JavaScript redirect to avoid header issues
-        if ($redirect_url) {
-            echo '<script type="text/javascript">
-                    window.location.href = "' . htmlspecialchars($redirect_url) . '";
-                  </script>';
-            echo '<noscript>
-                    <meta http-equiv="refresh" content="0;url=' . htmlspecialchars($redirect_url) . '">
-                  </noscript>';
-            return;
-        }
     }
 }
 
-// Handle AJAX requests for quick actions
-if (isset($_GET['ajax']) && isset($_GET['id'])) {
-    $ajax_user_id = (int)$_GET['id'];
-    
-    if (!verify_csrf_token($_GET['token'] ?? '')) {
-        header('Content-Type: application/json');
-        echo json_encode(['success' => false, 'message' => 'Invalid security token.']);
-        exit;
-    }
-    
-    switch ($_GET['ajax']) {
-        case 'toggle_status':
-            $result = toggle_user_status($ajax_user_id);
-            header('Content-Type: application/json');
-            echo json_encode($result);
-            exit;
-            
-        case 'reset_password':
-            $result = reset_user_password($ajax_user_id);
-            header('Content-Type: application/json');
-            echo json_encode($result);
-            exit;
-    }
-}
+// End output buffering and send content for non-AJAX requests
+ob_end_flush();
 
 // Enhanced function to get all users with pagination and search
 function get_all_users($options = []) {
@@ -498,7 +507,7 @@ function toggle_user_status($id) {
         
         if ($result) {
             log_audit($_SESSION['user_id'], 'toggle_status', 'users', $id, ['status' => $user['status']], ['status' => $new_status]);
-            return ['success' => true, 'message' => 'User status updated.', 'new_status' => $new_status];
+            return ['success' => true, 'message' => 'User status updated successfully.', 'new_status' => $new_status];
         }
         
         return ['success' => false, 'message' => 'Failed to update status.'];
@@ -1225,7 +1234,7 @@ if ($action === 'add' || $action === 'edit' || $action === 'bulk_import') {
                         <td>
                             <div class="btn-list flex-nowrap">
                                 <?php if ($list_user['id'] != $_SESSION['user_id']): ?>
-                                <button class="btn btn-sm btn-outline-warning" onclick="toggleUserStatus(<?php echo $list_user['id']; ?>)" id="toggle-btn-<?php echo $list_user['id']; ?>">
+                                <button class="btn btn-sm btn-outline-warning" onclick="toggleUserStatus(<?php echo $list_user['id']; ?>)" id="toggle-btn-<?php echo $list_user['id']; ?>" title="Toggle Status">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <circle cx="12" cy="12" r="3"></circle>
                                         <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
@@ -1247,7 +1256,7 @@ if ($action === 'add' || $action === 'edit' || $action === 'bulk_import') {
                                         </a>
                                         
                                         <?php if ($list_user['id'] != $_SESSION['user_id']): ?>
-                                        <button class="dropdown-item" onclick="resetUserPassword(<?php echo $list_user['id']; ?>, '<?php echo htmlspecialchars($list_user['first_name'] . ' ' . $list_user['last_name']); ?>')"
+                                        <button class="dropdown-item" onclick="resetUserPassword(<?php echo $list_user['id']; ?>, '<?php echo htmlspecialchars($list_user['first_name'] . ' ' . $list_user['last_name']); ?>')">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" class="me-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
                                                 <circle cx="12" cy="16" r="1"></circle>
@@ -1393,7 +1402,7 @@ if ($action === 'add' || $action === 'edit' || $action === 'bulk_import') {
 <?php endif; ?>
 
 <!-- Delete Confirmation Modal -->
-<div class="modal modal-blur fade" id="deleteUserModal" tabindex="-1" role="dialog">
+<div class="modal modal-blur fade" id="deleteUserModal" tabindex="-1" role="dialog" aria-labelledby="deleteUserModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-sm modal-dialog-centered" role="document">
         <div class="modal-content">
             <div class="modal-body">
@@ -1412,7 +1421,7 @@ if ($action === 'add' || $action === 'edit' || $action === 'bulk_import') {
 </div>
 
 <!-- Password Reset Result Modal -->
-<div class="modal fade" id="passwordResetModal" tabindex="-1" aria-labelledby="passwordResetModalLabel" aria-hidden="true">
+<div class="modal fade" id="passwordResetModal" tabindex="-1" aria-labelledby="passwordResetModalLabel" aria-hidden="true" style="z-index: 10000;">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
             <div class="modal-header">
@@ -1469,91 +1478,126 @@ if ($action === 'add' || $action === 'edit' || $action === 'bulk_import') {
 // CSRF token for AJAX requests
 const csrfToken = '<?php echo generate_csrf_token(); ?>';
 
-// Toggle user status via AJAX
+// Toggle user status via AJAX - FIXED
 function toggleUserStatus(userId) {
     if (confirm('Are you sure you want to change this user\'s status?')) {
         const button = document.getElementById(`toggle-btn-${userId}`);
+        const statusBadge = document.getElementById(`status-${userId}`);
         const originalText = button.innerHTML;
         
         // Show loading state
         button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
         button.disabled = true;
         
-        // Create a simple AJAX call
-        const xhr = new XMLHttpRequest();
-        xhr.open('GET', `dashboard.php?page=users&ajax=toggle_status&id=${userId}&token=${encodeURIComponent(csrfToken)}`, true);
-        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        // Create AJAX request with simple URL construction
+        const ajaxUrl = `${window.location.pathname}?page=users&ajax=toggle_status&id=${userId}&token=${encodeURIComponent(csrfToken)}`;
         
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === 4) {
-                button.innerHTML = originalText;
-                button.disabled = false;
-                
-                if (xhr.status === 200) {
-                    try {
-                        const data = JSON.parse(xhr.responseText);
-                        if (data.success) {
-                            const statusBadge = document.getElementById(`status-${userId}`);
-                            statusBadge.textContent = data.new_status.charAt(0).toUpperCase() + data.new_status.slice(1);
-                            statusBadge.className = `badge ${data.new_status === 'active' ? 'bg-green' : 'bg-gray'}`;
-                            showMessage('success', data.message);
-                        } else {
-                            showMessage('danger', data.message || 'Unknown error occurred');
-                        }
-                    } catch (e) {
-                        showMessage('danger', 'Error parsing response');
-                    }
-                } else {
-                    showMessage('danger', `HTTP Error: ${xhr.status}`);
-                }
+        fetch(ajaxUrl, {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
             }
-        };
-        
-        xhr.send();
+        })
+        .then(response => {
+            console.log('Response status:', response.status);
+            console.log('Response headers:', response.headers.get('content-type'));
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                return response.text().then(text => {
+                    console.error('Non-JSON response:', text.substring(0, 200));
+                    throw new Error('Server returned HTML instead of JSON. Check server-side errors.');
+                });
+            }
+            
+            return response.json();
+        })
+        .then(data => {
+            console.log('AJAX response:', data);
+            if (data.success) {
+                // Update status badge immediately
+                statusBadge.textContent = data.new_status.charAt(0).toUpperCase() + data.new_status.slice(1);
+                statusBadge.className = `badge ${data.new_status === 'active' ? 'bg-green' : 'bg-gray'}`;
+                showMessage('success', data.message);
+            } else {
+                showMessage('danger', data.message || 'Unknown error occurred');
+            }
+        })
+        .catch(error => {
+            console.error('Toggle status error:', error);
+            showMessage('danger', `Error: ${error.message}`);
+        })
+        .finally(() => {
+            // Restore button state
+            button.innerHTML = originalText;
+            button.disabled = false;
+        });
     }
 }
 
-// Reset user password via AJAX
+// Reset user password via AJAX - FIXED
 function resetUserPassword(userId, userName) {
     if (confirm(`Are you sure you want to reset the password for ${userName}?`)) {
         showMessage('info', 'Generating new password...');
         
-        const xhr = new XMLHttpRequest();
-        xhr.open('GET', `dashboard.php?page=users&ajax=reset_password&id=${userId}&token=${encodeURIComponent(csrfToken)}`, true);
-        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        // Create AJAX request with simple URL construction
+        const ajaxUrl = `${window.location.pathname}?page=users&ajax=reset_password&id=${userId}&token=${encodeURIComponent(csrfToken)}`;
         
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === 4) {
-                if (xhr.status === 200) {
-                    try {
-                        const data = JSON.parse(xhr.responseText);
-                        if (data.success) {
-                            const passwordField = document.getElementById('newPassword');
-                            const modal = document.getElementById('passwordResetModal');
-                            
-                            if (passwordField && modal) {
-                                passwordField.value = data.new_password;
-                                const bootstrapModal = new bootstrap.Modal(modal);
-                                bootstrapModal.show();
-                                showMessage('success', 'Password reset successfully!');
-                            } else {
-                                // Fallback if modal elements don't exist
-                                alert(`Password reset successful!\n\nNew Password: ${data.new_password}\n\nPlease save this password securely.`);
-                                showMessage('success', 'Password reset successfully! Password was shown in alert.');
-                            }
-                        } else {
-                            showMessage('danger', data.message || 'Unknown error occurred');
-                        }
-                    } catch (e) {
-                        showMessage('danger', 'Error parsing response');
-                    }
-                } else {
-                    showMessage('danger', `HTTP Error: ${xhr.status}`);
-                }
+        fetch(ajaxUrl, {
+            method: 'GET',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
             }
-        };
-        
-        xhr.send();
+        })
+        .then(response => {
+            console.log('Password reset response status:', response.status);
+            console.log('Password reset response headers:', response.headers.get('content-type'));
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                return response.text().then(text => {
+                    console.error('Non-JSON response:', text.substring(0, 200));
+                    throw new Error('Server returned HTML instead of JSON. Check server-side errors.');
+                });
+            }
+            
+            return response.json();
+        })
+        .then(data => {
+            console.log('Password reset AJAX response:', data);
+            if (data.success) {
+                const passwordField = document.getElementById('newPassword');
+                if (passwordField) {
+                    passwordField.value = data.new_password;
+                    const modal = new bootstrap.Modal(document.getElementById('passwordResetModal'), {
+                        backdrop: 'static',
+                        keyboard: false
+                    });
+                    modal.show();
+                    showMessage('success', 'Password reset successfully!');
+                } else {
+                    // Fallback if modal elements don't exist
+                    alert(`Password reset successful!\n\nNew Password: ${data.new_password}\n\nPlease save this password securely.`);
+                    showMessage('success', 'Password reset successfully! Password was shown in alert.');
+                }
+            } else {
+                showMessage('danger', data.message || 'Unknown error occurred');
+            }
+        })
+        .catch(error => {
+            console.error('Reset password error:', error);
+            showMessage('danger', `Error: ${error.message}`);
+        });
     }
 }
 
@@ -1593,16 +1637,31 @@ function copyPassword() {
     }
 }
 
-// Confirm delete user
+// Confirm delete user - FIXED
 function confirmDeleteUser(userId, userName) {
-    document.getElementById('deleteUserName').textContent = userName;
-    document.getElementById('deleteUserForm').action = `dashboard.php?page=users&action=delete&id=${userId}`;
-    const modal = new bootstrap.Modal(document.getElementById('deleteUserModal'));
-    modal.show();
+    const modal = document.getElementById('deleteUserModal');
+    const deleteUserName = document.getElementById('deleteUserName');
+    const deleteUserForm = document.getElementById('deleteUserForm');
+    
+    if (deleteUserName && deleteUserForm) {
+        deleteUserName.textContent = userName;
+        deleteUserForm.action = `dashboard.php?page=users&action=delete&id=${userId}`;
+        
+        // Use Bootstrap 5 modal API
+        const bootstrapModal = new bootstrap.Modal(modal, {
+            backdrop: true,
+            keyboard: true,
+            focus: true
+        });
+        bootstrapModal.show();
+    } else {
+        console.error('Modal elements not found');
+    }
 }
 
 // Enhanced message display function
 function showMessage(type, message) {
+    // Remove existing messages
     const existingMessages = document.querySelectorAll('.alert.auto-message');
     existingMessages.forEach(msg => msg.remove());
     
@@ -1616,11 +1675,18 @@ function showMessage(type, message) {
         min-width: 300px;
         max-width: 500px;
     `;
+    
+    const iconPath = type === 'success' 
+        ? 'M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z'
+        : type === 'info' 
+        ? 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z'
+        : 'M12 9v4M12 17h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z';
+    
     alertDiv.innerHTML = `
         <div class="d-flex">
             <div class="me-2">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
-                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${type === 'success' ? 'M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z' : type === 'info' ? 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z' : 'M12 9v4M12 17h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z'}"/>
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${iconPath}"/>
                 </svg>
             </div>
             <div>${message}</div>
@@ -1630,6 +1696,7 @@ function showMessage(type, message) {
     
     document.body.appendChild(alertDiv);
     
+    // Auto-dismiss after 5 seconds
     setTimeout(() => {
         if (alertDiv && alertDiv.parentNode) {
             alertDiv.classList.remove('show');
@@ -1640,6 +1707,42 @@ function showMessage(type, message) {
 
 // Form validation
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Bootstrap modals properly with higher z-index
+    const modalElements = document.querySelectorAll('.modal');
+    modalElements.forEach(modalEl => {
+        modalEl.addEventListener('show.bs.modal', function() {
+            // Remove any existing modal backdrops
+            const existingBackdrops = document.querySelectorAll('.modal-backdrop');
+            existingBackdrops.forEach(backdrop => backdrop.remove());
+            
+            // Set high z-index for this modal
+            this.style.zIndex = '10050';
+        });
+        
+        modalEl.addEventListener('shown.bs.modal', function() {
+            // Ensure backdrop has lower z-index than modal
+            const backdrop = document.querySelector('.modal-backdrop');
+            if (backdrop) {
+                backdrop.style.zIndex = '10040';
+            }
+        });
+    });
+    
+    // Special handling for password reset modal
+    const passwordModal = document.getElementById('passwordResetModal');
+    if (passwordModal) {
+        passwordModal.addEventListener('show.bs.modal', function() {
+            this.style.zIndex = '10060';
+            setTimeout(() => {
+                const backdrop = document.querySelector('.modal-backdrop');
+                if (backdrop) {
+                    backdrop.style.zIndex = '10050';
+                }
+            }, 100);
+        });
+    }
+    
+    // Form validation
     const forms = document.querySelectorAll('form');
     forms.forEach(form => {
         form.addEventListener('submit', function(e) {
@@ -1658,6 +1761,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!isValid) {
                 e.preventDefault();
                 showMessage('danger', 'Please fill in all required fields.');
+                return false;
             }
         });
     });
@@ -1671,10 +1775,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
-});
-
-// Auto-hide alerts
-document.addEventListener('DOMContentLoaded', function() {
+    
+    // Auto-hide alerts
     setTimeout(function() {
         const alerts = document.querySelectorAll('.alert:not(.auto-message)');
         alerts.forEach(function(alert) {
@@ -1690,4 +1792,12 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }, 5000);
 });
-</script>>
+
+// Prevent form resubmission on page refresh
+if (window.history.replaceState) {
+    const url = new URL(window.location);
+    url.searchParams.delete('success');
+    url.searchParams.delete('error');
+    window.history.replaceState(null, null, url);
+}
+</script>
