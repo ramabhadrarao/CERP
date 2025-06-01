@@ -1,5 +1,5 @@
 <?php
-// pages/users.php - Complete User Management System
+// pages/users.php - Complete Enhanced User Management System
 
 // Check if user has admin permission
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
@@ -13,6 +13,7 @@ if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
 // Get action and parameters
 $action = isset($_GET['action']) ? sanitize_input($_GET['action']) : 'list';
 $user_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+
 // Get success/error messages from URL parameters
 if (isset($_GET['success'])) {
     $message = sanitize_input($_GET['success']);
@@ -30,7 +31,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             case 'add':
                 $result = handle_add_user($_POST);
                 if ($result['success']) {
-                    // Redirect to prevent form resubmission
                     header('Location: dashboard.php?page=users&success=' . urlencode($result['message']));
                     exit;
                 } else {
@@ -41,7 +41,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             case 'edit':
                 $result = handle_edit_user($user_id, $_POST);
                 if ($result['success']) {
-                    // Redirect to prevent form resubmission
                     header('Location: dashboard.php?page=users&success=' . urlencode($result['message']));
                     exit;
                 } else {
@@ -52,13 +51,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             case 'delete':
                 $result = handle_delete_user($user_id);
                 if ($result['success']) {
-                    // Redirect to prevent form resubmission
                     header('Location: dashboard.php?page=users&success=' . urlencode($result['message']));
                     exit;
                 } else {
-                    // Redirect with error
                     header('Location: dashboard.php?page=users&error=' . urlencode($result['message']));
                     exit;
+                }
+                break;
+                
+            case 'bulk_import':
+                $result = handle_bulk_import_users($_FILES, $_POST);
+                if ($result['success']) {
+                    header('Location: dashboard.php?page=users&success=' . urlencode($result['message']));
+                    exit;
+                } else {
+                    $error = $result['message'];
                 }
                 break;
         }
@@ -69,7 +76,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 if (isset($_GET['ajax']) && isset($_GET['id'])) {
     $ajax_user_id = (int)$_GET['id'];
     
-    // Verify CSRF token for AJAX requests
     if (!verify_csrf_token($_GET['token'] ?? '')) {
         header('Content-Type: application/json');
         echo json_encode(['success' => false, 'message' => 'Invalid security token.']);
@@ -91,19 +97,62 @@ if (isset($_GET['ajax']) && isset($_GET['id'])) {
     }
 }
 
-// Get all users for listing
-function get_all_users() {
+// Enhanced function to get all users with pagination and search
+function get_all_users($options = []) {
     global $pdo;
+    
+    $defaults = [
+        'search' => '',
+        'role_filter' => '',
+        'status_filter' => '',
+        'limit' => 25,
+        'offset' => 0
+    ];
+    
+    $options = array_merge($defaults, $options);
+    
+    $where_conditions = [];
+    $params = [];
+    
+    // Search functionality
+    if (!empty($options['search'])) {
+        $where_conditions[] = "(u.first_name LIKE :search OR u.last_name LIKE :search OR u.email LIKE :search OR u.username LIKE :search)";
+        $params['search'] = '%' . $options['search'] . '%';
+    }
+    
+    // Role filter
+    if (!empty($options['role_filter'])) {
+        $where_conditions[] = "u.role_id = :role_filter";
+        $params['role_filter'] = $options['role_filter'];
+    }
+    
+    // Status filter
+    if (!empty($options['status_filter'])) {
+        $where_conditions[] = "u.status = :status_filter";
+        $params['status_filter'] = $options['status_filter'];
+    }
+    
+    $where_clause = '';
+    if (!empty($where_conditions)) {
+        $where_clause = 'WHERE ' . implode(' AND ', $where_conditions);
+    }
+    
     try {
-        $stmt = $pdo->query("
+        $sql = "
             SELECT u.*, r.name as role_name, r.description as role_description,
-                   COUNT(CASE WHEN us.expires_at > NOW() THEN 1 END) as active_sessions
+                   COUNT(CASE WHEN us.expires_at > NOW() THEN 1 END) as active_sessions,
+                   u.created_at, u.last_login
             FROM users u 
             LEFT JOIN roles r ON u.role_id = r.id 
             LEFT JOIN user_sessions us ON u.id = us.user_id
+            {$where_clause}
             GROUP BY u.id
             ORDER BY u.created_at DESC
-        ");
+            LIMIT {$options['limit']} OFFSET {$options['offset']}
+        ";
+        
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
         return $stmt->fetchAll();
     } catch (Exception $e) {
         error_log("Get users error: " . $e->getMessage());
@@ -111,11 +160,50 @@ function get_all_users() {
     }
 }
 
+// Count total users
+function count_users($options = []) {
+    global $pdo;
+    
+    $where_conditions = [];
+    $params = [];
+    
+    if (!empty($options['search'])) {
+        $where_conditions[] = "(u.first_name LIKE :search OR u.last_name LIKE :search OR u.email LIKE :search OR u.username LIKE :search)";
+        $params['search'] = '%' . $options['search'] . '%';
+    }
+    
+    if (!empty($options['role_filter'])) {
+        $where_conditions[] = "u.role_id = :role_filter";
+        $params['role_filter'] = $options['role_filter'];
+    }
+    
+    if (!empty($options['status_filter'])) {
+        $where_conditions[] = "u.status = :status_filter";
+        $params['status_filter'] = $options['status_filter'];
+    }
+    
+    $where_clause = '';
+    if (!empty($where_conditions)) {
+        $where_clause = 'WHERE ' . implode(' AND ', $where_conditions);
+    }
+    
+    try {
+        $sql = "SELECT COUNT(*) as total FROM users u LEFT JOIN roles r ON u.role_id = r.id {$where_clause}";
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute($params);
+        $result = $stmt->fetch();
+        return $result['total'];
+    } catch (Exception $e) {
+        error_log("Count users error: " . $e->getMessage());
+        return 0;
+    }
+}
+
 // Get all roles for dropdowns
 function get_all_roles() {
     global $pdo;
     try {
-        $stmt = $pdo->query("SELECT * FROM roles ORDER BY name");
+        $stmt = $pdo->query("SELECT * FROM roles WHERE status = 'active' ORDER BY name");
         return $stmt->fetchAll();
     } catch (Exception $e) {
         error_log("Get roles error: " . $e->getMessage());
@@ -141,7 +229,7 @@ function get_user_by_id($id) {
     }
 }
 
-// Handle add user
+// Enhanced handle add user
 function handle_add_user($data) {
     global $pdo;
     
@@ -150,6 +238,10 @@ function handle_add_user($data) {
     
     if (empty($data['username']) || strlen($data['username']) < 3) {
         $errors[] = "Username must be at least 3 characters long.";
+    }
+    
+    if (!preg_match('/^[a-zA-Z0-9._-]+$/', $data['username'])) {
+        $errors[] = "Username can only contain letters, numbers, dots, underscores, and hyphens.";
     }
     
     if (empty($data['email']) || !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
@@ -180,13 +272,17 @@ function handle_add_user($data) {
             return ['success' => false, 'message' => 'Username or email already exists.'];
         }
         
+        // Generate UUID for user
+        $user_uuid = generate_uuid();
+        
         // Insert new user
         $stmt = $pdo->prepare("
-            INSERT INTO users (username, email, password_hash, role_id, first_name, last_name, phone, address, status) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO users (user_uuid, username, email, password_hash, role_id, first_name, last_name, phone, address, status) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ");
         
         $result = $stmt->execute([
+            $user_uuid,
             $data['username'],
             $data['email'],
             password_hash($data['password'], PASSWORD_DEFAULT),
@@ -215,11 +311,11 @@ function handle_add_user($data) {
         
     } catch (Exception $e) {
         error_log("Add user error: " . $e->getMessage());
-        return ['success' => false, 'message' => 'Database error occurred.'];
+        return ['success' => false, 'message' => 'Database error occurred: ' . $e->getMessage()];
     }
 }
 
-// Handle edit user
+// Enhanced handle edit user
 function handle_edit_user($id, $data) {
     global $pdo;
     
@@ -232,6 +328,10 @@ function handle_edit_user($id, $data) {
     
     if (empty($data['username']) || strlen($data['username']) < 3) {
         $errors[] = "Username must be at least 3 characters long.";
+    }
+    
+    if (!preg_match('/^[a-zA-Z0-9._-]+$/', $data['username'])) {
+        $errors[] = "Username can only contain letters, numbers, dots, underscores, and hyphens.";
     }
     
     if (empty($data['email']) || !filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
@@ -303,11 +403,11 @@ function handle_edit_user($id, $data) {
         
     } catch (Exception $e) {
         error_log("Edit user error: " . $e->getMessage());
-        return ['success' => false, 'message' => 'Database error occurred.'];
+        return ['success' => false, 'message' => 'Database error occurred: ' . $e->getMessage()];
     }
 }
 
-// Handle delete user
+// Enhanced handle delete user
 function handle_delete_user($id) {
     global $pdo;
     
@@ -327,7 +427,22 @@ function handle_delete_user($id) {
             return ['success' => false, 'message' => 'User not found.'];
         }
         
-        // Delete user (this will cascade to related tables)
+        // Check if user has dependent records
+        $dependent_tables = [
+            'students' => 'user_id',
+            'faculty' => 'user_id'
+        ];
+        
+        foreach ($dependent_tables as $table => $column) {
+            $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM {$table} WHERE {$column} = ?");
+            $stmt->execute([$id]);
+            $result = $stmt->fetch();
+            if ($result['count'] > 0) {
+                return ['success' => false, 'message' => "Cannot delete user. They have associated {$table} records."];
+            }
+        }
+        
+        // Delete user (sessions will be cascaded)
         $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
         $result = $stmt->execute([$id]);
         
@@ -409,11 +524,186 @@ function reset_user_password($id) {
     }
 }
 
-// Generate secure password
-function generate_secure_password($length = 12) {
-    $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*';
-    return substr(str_shuffle(str_repeat($chars, ceil($length/strlen($chars)))), 0, $length);
+// Bulk import users
+function handle_bulk_import_users($files, $data) {
+    global $pdo;
+    
+    if (!isset($files['bulk_file']) || $files['bulk_file']['error'] !== UPLOAD_ERR_OK) {
+        return ['success' => false, 'message' => 'Please select a valid CSV file.'];
+    }
+    
+    $file = $files['bulk_file'];
+    $allowed_types = ['text/csv', 'application/csv', 'text/plain'];
+    
+    if (!in_array($file['type'], $allowed_types) && !str_ends_with($file['name'], '.csv')) {
+        return ['success' => false, 'message' => 'Only CSV files are allowed.'];
+    }
+    
+    try {
+        $handle = fopen($file['tmp_name'], 'r');
+        if (!$handle) {
+            throw new Exception("Could not open CSV file.");
+        }
+        
+        // Read header row
+        $header = fgetcsv($handle);
+        if (!$header) {
+            throw new Exception("CSV file is empty or invalid.");
+        }
+        
+        // Expected columns
+        $required_columns = ['first_name', 'last_name', 'email', 'username', 'role'];
+        $optional_columns = ['phone', 'address', 'status'];
+        
+        // Map header to indices
+        $column_map = [];
+        foreach ($header as $index => $column) {
+            $column = strtolower(trim($column));
+            $column_map[$column] = $index;
+        }
+        
+        // Check required columns
+        foreach ($required_columns as $required) {
+            if (!isset($column_map[$required])) {
+                throw new Exception("Required column '{$required}' not found in CSV.");
+            }
+        }
+        
+        $pdo->beginTransaction();
+        
+        // Get roles mapping
+        $roles = [];
+        $stmt = $pdo->query("SELECT id, name FROM roles WHERE status = 'active'");
+        while ($role = $stmt->fetch()) {
+            $roles[strtolower($role['name'])] = $role['id'];
+        }
+        
+        $success_count = 0;
+        $error_count = 0;
+        $errors = [];
+        $row_number = 1;
+        
+        while (($row = fgetcsv($handle)) !== false) {
+            $row_number++;
+            
+            try {
+                // Extract data from row
+                $user_data = [];
+                foreach ($column_map as $column => $index) {
+                    $user_data[$column] = isset($row[$index]) ? trim($row[$index]) : '';
+                }
+                
+                // Validate required fields
+                foreach ($required_columns as $required) {
+                    if (empty($user_data[$required])) {
+                        throw new Exception("Row {$row_number}: {$required} is required.");
+                    }
+                }
+                
+                // Validate email
+                if (!filter_var($user_data['email'], FILTER_VALIDATE_EMAIL)) {
+                    throw new Exception("Row {$row_number}: Invalid email format.");
+                }
+                
+                // Get role ID
+                $role_name = strtolower($user_data['role']);
+                if (!isset($roles[$role_name])) {
+                    throw new Exception("Row {$row_number}: Invalid role '{$user_data['role']}'.");
+                }
+                $role_id = $roles[$role_name];
+                
+                // Check for duplicates
+                $stmt = $pdo->prepare("SELECT id FROM users WHERE username = ? OR email = ?");
+                $stmt->execute([$user_data['username'], $user_data['email']]);
+                if ($stmt->fetch()) {
+                    throw new Exception("Row {$row_number}: Username or email already exists.");
+                }
+                
+                // Generate default password
+                $default_password = 'Welcome@' . date('Y');
+                $user_uuid = generate_uuid();
+                
+                // Create user account
+                $stmt = $pdo->prepare("
+                    INSERT INTO users (user_uuid, username, email, password_hash, role_id, first_name, last_name, phone, address, status) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ");
+                
+                $result = $stmt->execute([
+                    $user_uuid,
+                    $user_data['username'],
+                    $user_data['email'],
+                    password_hash($default_password, PASSWORD_DEFAULT),
+                    $role_id,
+                    $user_data['first_name'],
+                    $user_data['last_name'],
+                    $user_data['phone'] ?? null,
+                    $user_data['address'] ?? null,
+                    $user_data['status'] ?? 'active'
+                ]);
+                
+                if (!$result) {
+                    throw new Exception("Row {$row_number}: Failed to create user account.");
+                }
+                
+                $success_count++;
+                
+            } catch (Exception $e) {
+                $errors[] = $e->getMessage();
+                $error_count++;
+                continue;
+            }
+        }
+        
+        fclose($handle);
+        
+        if ($success_count > 0) {
+            // Log bulk import action
+            log_audit($_SESSION['user_id'], 'bulk_import_users', 'users', null, null, [
+                'success_count' => $success_count,
+                'error_count' => $error_count,
+                'file_name' => $file['name']
+            ]);
+            
+            $pdo->commit();
+            
+            $message = "Bulk import completed: {$success_count} users added successfully.";
+            if ($error_count > 0) {
+                $message .= " {$error_count} rows had errors: " . implode('; ', array_slice($errors, 0, 5));
+                if (count($errors) > 5) {
+                    $message .= " and " . (count($errors) - 5) . " more errors.";
+                }
+            }
+            
+            return ['success' => true, 'message' => $message];
+        } else {
+            $pdo->rollBack();
+            return ['success' => false, 'message' => 'No users were imported. Errors: ' . implode('; ', $errors)];
+        }
+        
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        error_log("Bulk import error: " . $e->getMessage());
+        return ['success' => false, 'message' => $e->getMessage()];
+    }
 }
+
+// Pagination and filtering setup
+$records_per_page = 25;
+$page = isset($_GET['page_num']) ? (int)$_GET['page_num'] : 1;
+$offset = ($page - 1) * $records_per_page;
+
+$search = isset($_GET['search']) ? sanitize_input($_GET['search']) : '';
+$role_filter = isset($_GET['role']) ? (int)$_GET['role'] : '';
+$status_filter = isset($_GET['status']) ? sanitize_input($_GET['status']) : '';
+
+$filter_options = [
+    'search' => $search,
+    'role_filter' => $role_filter,
+    'status_filter' => $status_filter,
+    'limit' => $records_per_page,
+    'offset' => $offset
+];
 
 // Get data based on current action
 $users = [];
@@ -421,17 +711,21 @@ $roles = [];
 $edit_user = null;
 
 if ($action === 'list' || $action === 'delete') {
-    $users = get_all_users();
+    $users = get_all_users($filter_options);
+    $total_users = count_users($filter_options);
+    $total_pages = ceil($total_users / $records_per_page);
 }
 
-if ($action === 'add' || $action === 'edit') {
+if ($action === 'add' || $action === 'edit' || $action === 'bulk_import') {
     $roles = get_all_roles();
     if ($action === 'edit' && $user_id) {
         $edit_user = get_user_by_id($user_id);
         if (!$edit_user) {
             $error = 'User not found.';
             $action = 'list';
-            $users = get_all_users();
+            $users = get_all_users($filter_options);
+            $total_users = count_users($filter_options);
+            $total_pages = ceil($total_users / $records_per_page);
         }
     }
 }
@@ -561,6 +855,7 @@ if ($action === 'add' || $action === 'edit') {
                         <select name="status" class="form-select">
                             <option value="active" <?php echo (($_POST['status'] ?? 'active') === 'active') ? 'selected' : ''; ?>>Active</option>
                             <option value="inactive" <?php echo (($_POST['status'] ?? '') === 'inactive') ? 'selected' : ''; ?>>Inactive</option>
+                            <option value="pending" <?php echo (($_POST['status'] ?? '') === 'pending') ? 'selected' : ''; ?>>Pending</option>
                         </select>
                     </div>
                 </div>
@@ -579,6 +874,61 @@ if ($action === 'add' || $action === 'edit') {
                         <polyline points="7,3 7,8 15,8"></polyline>
                     </svg>
                     Create User
+                </button>
+                <a href="dashboard.php?page=users" class="btn btn-secondary ms-2">Cancel</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<?php elseif ($action === 'bulk_import'): ?>
+<!-- Bulk Import Form -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">Bulk Import Users</h3>
+        <div class="card-actions">
+            <a href="dashboard.php?page=users" class="btn btn-outline-secondary">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" class="me-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="15,18 9,12 15,6"></polyline>
+                </svg>
+                Back to Users
+            </a>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-info">
+            <h4>CSV Format Requirements</h4>
+            <p>Your CSV file must include the following columns (case-sensitive):</p>
+            <ul>
+                <li><strong>Required:</strong> first_name, last_name, email, username, role</li>
+                <li><strong>Optional:</strong> phone, address, status</li>
+            </ul>
+            <p class="mb-0"><strong>Notes:</strong></p>
+            <ul class="mb-0">
+                <li>Default password will be "Welcome@<?php echo date('Y'); ?>" for all imported users</li>
+                <li>Role should match existing role names (e.g., faculty, student, admin)</li>
+                <li>Status defaults to "active" if not specified</li>
+            </ul>
+        </div>
+        
+        <form method="POST" action="dashboard.php?page=users&action=bulk_import" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
+            
+            <div class="mb-3">
+                <label class="form-label required">CSV File</label>
+                <input type="file" name="bulk_file" class="form-control" accept=".csv" required>
+                <div class="form-hint">Select a CSV file containing user data. Maximum file size: 10MB.</div>
+            </div>
+            
+            <div class="form-footer">
+                <button type="submit" class="btn btn-primary">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" class="me-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14,2 14,8 20,8"></polyline>
+                        <line x1="16" y1="13" x2="8" y2="13"></line>
+                        <line x1="16" y1="17" x2="8" y2="17"></line>
+                    </svg>
+                    Import Users
                 </button>
                 <a href="dashboard.php?page=users" class="btn btn-secondary ms-2">Cancel</a>
             </div>
@@ -680,6 +1030,7 @@ if ($action === 'add' || $action === 'edit') {
                             <option value="active" <?php echo (($_POST['status'] ?? $edit_user['status']) === 'active') ? 'selected' : ''; ?>>Active</option>
                             <option value="inactive" <?php echo (($_POST['status'] ?? $edit_user['status']) === 'inactive') ? 'selected' : ''; ?>>Inactive</option>
                             <option value="suspended" <?php echo (($_POST['status'] ?? $edit_user['status']) === 'suspended') ? 'selected' : ''; ?>>Suspended</option>
+                            <option value="pending" <?php echo (($_POST['status'] ?? $edit_user['status']) === 'pending') ? 'selected' : ''; ?>>Pending</option>
                         </select>
                     </div>
                 </div>
@@ -711,16 +1062,79 @@ if ($action === 'add' || $action === 'edit') {
     <div class="card-header">
         <h3 class="card-title">User Management</h3>
         <div class="card-actions">
-            <a href="dashboard.php?page=users&action=add" class="btn btn-primary">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" class="me-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                    <circle cx="8.5" cy="7" r="4"></circle>
-                    <line x1="20" y1="8" x2="20" y2="14"></line>
-                    <line x1="23" y1="11" x2="17" y2="11"></line>
-                </svg>
-                Add User
-            </a>
+            <div class="btn-group">
+                <a href="dashboard.php?page=users&action=add" class="btn btn-primary">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" class="me-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="8.5" cy="7" r="4"></circle>
+                        <line x1="20" y1="8" x2="20" y2="14"></line>
+                        <line x1="23" y1="11" x2="17" y2="11"></line>
+                    </svg>
+                    Add User
+                </a>
+                <button type="button" class="btn btn-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown">
+                    <span class="sr-only">Toggle Dropdown</span>
+                </button>
+                <div class="dropdown-menu">
+                    <a class="dropdown-item" href="dashboard.php?page=users&action=bulk_import">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" class="me-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                            <polyline points="14,2 14,8 20,8"></polyline>
+                            <line x1="16" y1="13" x2="8" y2="13"></line>
+                            <line x1="16" y1="17" x2="8" y2="17"></line>
+                        </svg>
+                        Bulk Import
+                    </a>
+                </div>
+            </div>
         </div>
+    </div>
+    
+    <!-- Filters -->
+    <div class="card-body border-bottom">
+        <form method="GET" action="dashboard.php" class="row g-2">
+            <input type="hidden" name="page" value="users">
+            
+            <div class="col-md-4">
+                <div class="input-group">
+                    <input type="text" name="search" class="form-control" placeholder="Search users..." 
+                           value="<?php echo htmlspecialchars($search); ?>">
+                    <button type="submit" class="btn btn-outline-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <path d="M21 21l-4.35-4.35"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="col-md-3">
+                <select name="role" class="form-select" onchange="this.form.submit()">
+                    <option value="">All Roles</option>
+                    <?php foreach ($roles as $role): ?>
+                    <option value="<?php echo $role['id']; ?>" <?php echo $role_filter == $role['id'] ? 'selected' : ''; ?>>
+                        <?php echo htmlspecialchars(ucfirst(str_replace('_', ' ', $role['name']))); ?>
+                    </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            
+            <div class="col-md-3">
+                <select name="status" class="form-select" onchange="this.form.submit()">
+                    <option value="">All Status</option>
+                    <option value="active" <?php echo $status_filter === 'active' ? 'selected' : ''; ?>>Active</option>
+                    <option value="inactive" <?php echo $status_filter === 'inactive' ? 'selected' : ''; ?>>Inactive</option>
+                    <option value="suspended" <?php echo $status_filter === 'suspended' ? 'selected' : ''; ?>>Suspended</option>
+                    <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending</option>
+                </select>
+            </div>
+            
+            <div class="col-md-2">
+                <?php if ($search || $role_filter || $status_filter): ?>
+                <a href="dashboard.php?page=users" class="btn btn-outline-secondary w-100">Clear</a>
+                <?php endif; ?>
+            </div>
+        </form>
     </div>
     
     <div class="table-responsive">
@@ -731,6 +1145,7 @@ if ($action === 'add' || $action === 'edit') {
                     <th>Role</th>
                     <th>Status</th>
                     <th>Created</th>
+                    <th>Last Login</th>
                     <th>Sessions</th>
                     <th class="w-1">Actions</th>
                 </tr>
@@ -769,6 +1184,7 @@ if ($action === 'add' || $action === 'edit') {
                                 'active' => 'bg-green',
                                 'inactive' => 'bg-gray',
                                 'suspended' => 'bg-red',
+                                'pending' => 'bg-yellow',
                                 default => 'bg-gray'
                             };
                             ?>
@@ -778,6 +1194,13 @@ if ($action === 'add' || $action === 'edit') {
                         </td>
                         <td class="text-muted">
                             <?php echo date('M j, Y', strtotime($list_user['created_at'])); ?>
+                        </td>
+                        <td class="text-muted">
+                            <?php if ($list_user['last_login']): ?>
+                                <?php echo date('M j, Y g:i A', strtotime($list_user['last_login'])); ?>
+                            <?php else: ?>
+                                <span class="text-muted">Never</span>
+                            <?php endif; ?>
                         </td>
                         <td class="text-muted">
                             <?php if ($list_user['active_sessions'] > 0): ?>
@@ -839,14 +1262,64 @@ if ($action === 'add' || $action === 'edit') {
                     <?php endforeach; ?>
                 <?php else: ?>
                     <tr>
-                        <td colspan="6" class="text-center text-muted py-4">
-                            No users found. <a href="dashboard.php?page=users&action=add">Add the first user</a>.
+                        <td colspan="7" class="text-center text-muted py-4">
+                            <?php if ($search || $role_filter || $status_filter): ?>
+                                No users found matching your criteria. <a href="dashboard.php?page=users">Clear filters</a> to see all users.
+                            <?php else: ?>
+                                No users found. <a href="dashboard.php?page=users&action=add">Add the first user</a>.
+                            <?php endif; ?>
                         </td>
                     </tr>
                 <?php endif; ?>
             </tbody>
         </table>
     </div>
+
+    <!-- Pagination -->
+    <?php if (isset($total_pages) && $total_pages > 1): ?>
+    <div class="card-footer d-flex align-items-center">
+        <p class="m-0 text-muted">
+            Showing <?php echo $offset + 1; ?> to <?php echo min($offset + $records_per_page, $total_users); ?> 
+            of <?php echo $total_users; ?> entries
+        </p>
+        <ul class="pagination m-0 ms-auto">
+            <?php if ($page > 1): ?>
+            <li class="page-item">
+                <a class="page-link" href="?page=users&page_num=<?php echo $page - 1; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?><?php echo $role_filter ? '&role=' . $role_filter : ''; ?><?php echo $status_filter ? '&status=' . urlencode($status_filter) : ''; ?>">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="15,18 9,12 15,6"></polyline>
+                    </svg>
+                    prev
+                </a>
+            </li>
+            <?php endif; ?>
+            
+            <?php
+            $start_page = max(1, $page - 2);
+            $end_page = min($total_pages, $page + 2);
+            
+            for ($i = $start_page; $i <= $end_page; $i++):
+            ?>
+            <li class="page-item <?php echo $i == $page ? 'active' : ''; ?>">
+                <a class="page-link" href="?page=users&page_num=<?php echo $i; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?><?php echo $role_filter ? '&role=' . $role_filter : ''; ?><?php echo $status_filter ? '&status=' . urlencode($status_filter) : ''; ?>">
+                    <?php echo $i; ?>
+                </a>
+            </li>
+            <?php endfor; ?>
+            
+            <?php if ($page < $total_pages): ?>
+            <li class="page-item">
+                <a class="page-link" href="?page=users&page_num=<?php echo $page + 1; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?><?php echo $role_filter ? '&role=' . $role_filter : ''; ?><?php echo $status_filter ? '&status=' . urlencode($status_filter) : ''; ?>">
+                    next
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="9,18 15,12 9,6"></polyline>
+                    </svg>
+                </a>
+            </li>
+            <?php endif; ?>
+        </ul>
+    </div>
+    <?php endif; ?>
 </div>
 
 <!-- User Statistics -->
@@ -857,7 +1330,7 @@ if ($action === 'add' || $action === 'edit') {
                 <div class="d-flex align-items-center">
                     <div class="subheader">Total Users</div>
                 </div>
-                <div class="h1 mb-3"><?php echo count($users); ?></div>
+                <div class="h1 mb-3"><?php echo isset($total_users) ? number_format($total_users) : count($users); ?></div>
                 <div class="d-flex mb-2">
                     <div>All registered users</div>
                 </div>
@@ -896,9 +1369,9 @@ if ($action === 'add' || $action === 'edit') {
                 <div class="d-flex align-items-center">
                     <div class="subheader">Administrators</div>
                 </div>
-                <div class="h1 mb-3"><?php echo count(array_filter($users, fn($u) => $u['role_name'] === 'super_admin')); ?></div>
+                <div class="h1 mb-3"><?php echo count(array_filter($users, fn($u) => in_array($u['role_name'], ['super_admin', 'admin']))); ?></div>
                 <div class="d-flex mb-2">
-                    <div>Super admin users</div>
+                    <div>Admin users</div>
                 </div>
             </div>
         </div>
@@ -987,9 +1460,8 @@ if (window.history.replaceState) {
 
 // CSRF token for AJAX requests
 const csrfToken = '<?php echo generate_csrf_token(); ?>';
-const baseUrl = window.location.origin + window.location.pathname.replace('dashboard.php', '');
 
-// Toggle user status
+// Toggle user status via AJAX
 function toggleUserStatus(userId) {
     if (confirm('Are you sure you want to change this user\'s status?')) {
         const button = document.getElementById(`toggle-btn-${userId}`);
@@ -999,99 +1471,81 @@ function toggleUserStatus(userId) {
         button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
         button.disabled = true;
         
-        fetch(`${baseUrl}ajax_debug.php?action=toggle_status&id=${userId}`, {
-            method: 'GET',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            }
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                const statusBadge = document.getElementById(`status-${userId}`);
-                statusBadge.textContent = data.new_status.charAt(0).toUpperCase() + data.new_status.slice(1);
-                statusBadge.className = `badge ${data.new_status === 'active' ? 'bg-green' : 'bg-gray'}`;
-                showMessage('success', data.message);
-                
-                // Update button state
+        // Create a simple AJAX call
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', `dashboard.php?page=users&ajax=toggle_status&id=${userId}&token=${encodeURIComponent(csrfToken)}`, true);
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4) {
                 button.innerHTML = originalText;
                 button.disabled = false;
-            } else {
-                throw new Error(data.message || 'Unknown error occurred');
+                
+                if (xhr.status === 200) {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        if (data.success) {
+                            const statusBadge = document.getElementById(`status-${userId}`);
+                            statusBadge.textContent = data.new_status.charAt(0).toUpperCase() + data.new_status.slice(1);
+                            statusBadge.className = `badge ${data.new_status === 'active' ? 'bg-green' : 'bg-gray'}`;
+                            showMessage('success', data.message);
+                        } else {
+                            showMessage('danger', data.message || 'Unknown error occurred');
+                        }
+                    } catch (e) {
+                        showMessage('danger', 'Error parsing response');
+                    }
+                } else {
+                    showMessage('danger', `HTTP Error: ${xhr.status}`);
+                }
             }
-        })
-        .catch(error => {
-            console.error('Toggle status error:', error);
-            showMessage('danger', `Error: ${error.message}`);
-            
-            // Restore button state
-            button.innerHTML = originalText;
-            button.disabled = false;
-        });
+        };
+        
+        xhr.send();
     }
 }
 
-// Reset user password
+// Reset user password via AJAX
 function resetUserPassword(userId, userName) {
     if (confirm(`Are you sure you want to reset the password for ${userName}?`)) {
-        // Show loading indicator
         showMessage('info', 'Generating new password...');
         
-        fetch(`${baseUrl}ajax_debug.php?action=reset_password&id=${userId}`, {
-            method: 'GET',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest'
-            }
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.success) {
-                // Check if modal elements exist
-                const passwordField = document.getElementById('newPassword');
-                const modal = document.getElementById('passwordResetModal');
-                
-                if (!passwordField) {
-                    console.error('Password field not found');
-                    // Show password in a simple alert as fallback
-                    alert(`Password reset successful!\n\nNew Password: ${data.new_password}\n\nPlease save this password securely.`);
-                    showMessage('success', 'Password reset successfully! Password was shown in alert.');
-                    return;
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', `dashboard.php?page=users&ajax=reset_password&id=${userId}&token=${encodeURIComponent(csrfToken)}`, true);
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4) {
+                if (xhr.status === 200) {
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        if (data.success) {
+                            const passwordField = document.getElementById('newPassword');
+                            const modal = document.getElementById('passwordResetModal');
+                            
+                            if (passwordField && modal) {
+                                passwordField.value = data.new_password;
+                                const bootstrapModal = new bootstrap.Modal(modal);
+                                bootstrapModal.show();
+                                showMessage('success', 'Password reset successfully!');
+                            } else {
+                                // Fallback if modal elements don't exist
+                                alert(`Password reset successful!\n\nNew Password: ${data.new_password}\n\nPlease save this password securely.`);
+                                showMessage('success', 'Password reset successfully! Password was shown in alert.');
+                            }
+                        } else {
+                            showMessage('danger', data.message || 'Unknown error occurred');
+                        }
+                    } catch (e) {
+                        showMessage('danger', 'Error parsing response');
+                    }
+                } else {
+                    showMessage('danger', `HTTP Error: ${xhr.status}`);
                 }
-                
-                if (!modal) {
-                    console.error('Password reset modal not found');
-                    // Show password in a simple alert as fallback
-                    alert(`Password reset successful!\n\nNew Password: ${data.new_password}\n\nPlease save this password securely.`);
-                    showMessage('success', 'Password reset successfully! Password was shown in alert.');
-                    return;
-                }
-                
-                // Set the password value
-                passwordField.value = data.new_password;
-                
-                // Show the modal
-                const bootstrapModal = new bootstrap.Modal(modal);
-                bootstrapModal.show();
-                
-                showMessage('success', 'Password reset successfully!');
-            } else {
-                throw new Error(data.message || 'Unknown error occurred');
             }
-        })
-        .catch(error => {
-            console.error('Reset password error:', error);
-            showMessage('danger', `Error resetting password: ${error.message}`);
-        });
+        };
+        
+        xhr.send();
     }
 }
 
@@ -1099,31 +1553,21 @@ function resetUserPassword(userId, userName) {
 function copyPassword() {
     const passwordField = document.getElementById('newPassword');
     
-    if (!passwordField) {
-        showMessage('danger', 'Password field not found.');
-        return;
-    }
-    
-    if (!passwordField.value || passwordField.value === 'Loading...') {
+    if (!passwordField || !passwordField.value || passwordField.value === 'Loading...') {
         showMessage('danger', 'No password to copy.');
         return;
     }
     
-    // Select the text
     passwordField.select();
     passwordField.setSelectionRange(0, 99999);
     
-    // Try modern clipboard API first
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(passwordField.value).then(() => {
             showMessage('success', 'Password copied to clipboard!');
-        }).catch((err) => {
-            console.error('Clipboard API failed:', err);
-            // Fallback to execCommand
+        }).catch(() => {
             fallbackCopy();
         });
     } else {
-        // Fallback for older browsers
         fallbackCopy();
     }
     
@@ -1136,7 +1580,6 @@ function copyPassword() {
                 showMessage('warning', 'Copy failed. Please manually select and copy the password.');
             }
         } catch (err) {
-            console.error('execCommand failed:', err);
             showMessage('warning', 'Copy not supported. Please manually select and copy the password.');
         }
     }
@@ -1150,18 +1593,21 @@ function confirmDeleteUser(userId, userName) {
     modal.show();
 }
 
-// Show message function with better error handling
+// Enhanced message display function
 function showMessage(type, message) {
-    // Remove existing messages
-    const existingMessages = document.querySelectorAll('.alert');
-    existingMessages.forEach(msg => {
-        if (msg.classList.contains('alert-dismissible')) {
-            msg.remove();
-        }
-    });
+    const existingMessages = document.querySelectorAll('.alert.auto-message');
+    existingMessages.forEach(msg => msg.remove());
     
     const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.className = `alert alert-${type} alert-dismissible auto-message fade show`;
+    alertDiv.style.cssText = `
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        z-index: 9999;
+        min-width: 300px;
+        max-width: 500px;
+    `;
     alertDiv.innerHTML = `
         <div class="d-flex">
             <div class="me-2">
@@ -1174,17 +1620,14 @@ function showMessage(type, message) {
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     `;
     
-    const container = document.querySelector('.page-body .container-fluid');
-    if (container) {
-        container.insertBefore(alertDiv, container.firstChild);
-        
-        // Auto-dismiss after 5 seconds
-        setTimeout(() => {
-            if (alertDiv && alertDiv.parentNode) {
-                alertDiv.remove();
-            }
-        }, 5000);
-    }
+    document.body.appendChild(alertDiv);
+    
+    setTimeout(() => {
+        if (alertDiv && alertDiv.parentNode) {
+            alertDiv.classList.remove('show');
+            setTimeout(() => alertDiv.remove(), 150);
+        }
+    }, 5000);
 }
 
 // Form validation
@@ -1222,16 +1665,21 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Debug function to check AJAX calls
-function debugAjax() {
-    console.log('CSRF Token:', csrfToken);
-    console.log('Base URL:', baseUrl);
-    console.log('Current URL:', window.location.href);
-    console.log('AJAX URLs will be:');
-    console.log('  - Toggle Status:', `${baseUrl}ajax_debug.php?action=toggle_status&id=USER_ID`);
-    console.log('  - Reset Password:', `${baseUrl}ajax_debug.php?action=reset_password&id=USER_ID`);
-}
-
-// Call debug on page load (remove in production)
-document.addEventListener('DOMContentLoaded', debugAjax);
+// Auto-hide alerts
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(function() {
+        const alerts = document.querySelectorAll('.alert:not(.auto-message)');
+        alerts.forEach(function(alert) {
+            if (alert.classList.contains('alert-dismissible')) {
+                alert.style.transition = 'opacity 0.5s';
+                alert.style.opacity = '0';
+                setTimeout(function() {
+                    if (alert.parentNode) {
+                        alert.remove();
+                    }
+                }, 500);
+            }
+        });
+    }, 5000);
+});
 </script>

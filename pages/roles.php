@@ -1,5 +1,5 @@
 <?php
-// pages/roles.php - Enhanced Role Management System for new schema
+// pages/roles.php - Complete Enhanced Role Management System
 
 // Check if user has admin permission
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'super_admin') {
@@ -62,7 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Enhanced available permissions for the new comprehensive system
+// Comprehensive available permissions for the educational management system
 $available_permissions = [
     // System Administration
     'all' => 'Full System Access (Super Admin)',
@@ -70,8 +70,9 @@ $available_permissions = [
     'manage_roles' => 'Manage Roles & Permissions',
     'system_settings' => 'System Settings',
     'view_audit_logs' => 'View Audit Logs',
+    'manage_system_backups' => 'Manage System Backups',
     
-    // Academic Structure Management
+    // Institutional Management
     'manage_college' => 'Manage College Information',
     'manage_departments' => 'Manage Departments',
     'manage_programs' => 'Manage Programs',
@@ -88,6 +89,9 @@ $available_permissions = [
     'view_student_registrations' => 'View Student Course Registrations',
     'manage_student_documents' => 'Manage Student Documents',
     'view_student_documents' => 'View Student Documents',
+    'approve_student_registrations' => 'Approve Student Registrations',
+    'manage_student_admissions' => 'Manage Student Admissions',
+    'view_student_records' => 'View Student Academic Records',
     
     // Faculty Management
     'manage_faculty' => 'Manage Faculty',
@@ -95,6 +99,8 @@ $available_permissions = [
     'manage_faculty_assignments' => 'Manage Faculty Course Assignments',
     'view_faculty_assignments' => 'View Faculty Course Assignments',
     'manage_faculty_qualifications' => 'Manage Faculty Qualifications',
+    'manage_faculty_workload' => 'Manage Faculty Workload',
+    'approve_faculty_applications' => 'Approve Faculty Applications',
     
     // Course Management
     'manage_courses' => 'Manage Courses',
@@ -102,6 +108,9 @@ $available_permissions = [
     'manage_course_prerequisites' => 'Manage Course Prerequisites',
     'manage_electives' => 'Manage Elective Groups',
     'view_electives' => 'View Elective Groups',
+    'approve_course_proposals' => 'Approve Course Proposals',
+    'manage_course_syllabus' => 'Manage Course Syllabus',
+    'manage_course_schedule' => 'Manage Course Schedule',
     
     // Assessment & Marks
     'manage_assessments' => 'Manage Assessment Components',
@@ -109,46 +118,89 @@ $available_permissions = [
     'view_grades' => 'View Grades',
     'lock_unlock_marks' => 'Lock/Unlock Marks',
     'verify_marks' => 'Verify Marks',
+    'modify_marks' => 'Modify Student Marks',
+    'approve_grade_changes' => 'Approve Grade Changes',
+    'generate_transcripts' => 'Generate Academic Transcripts',
     
     // Attendance Management
     'manage_class_schedule' => 'Manage Class Schedule',
     'mark_attendance' => 'Mark Attendance',
     'view_attendance' => 'View Attendance',
     'generate_attendance_reports' => 'Generate Attendance Reports',
+    'modify_attendance' => 'Modify Attendance Records',
+    'approve_attendance_changes' => 'Approve Attendance Changes',
     
     // Research & Publications (Faculty)
     'manage_publications' => 'Manage Research Publications',
     'view_publications' => 'View Research Publications',
+    'approve_publications' => 'Approve Publication Records',
+    'manage_research_projects' => 'Manage Research Projects',
     
     // Reporting & Analytics
     'view_reports' => 'View Reports',
     'generate_reports' => 'Generate Reports',
     'view_analytics' => 'View Analytics Dashboard',
     'export_data' => 'Export System Data',
+    'generate_certificates' => 'Generate Certificates',
+    'view_institutional_reports' => 'View Institutional Reports',
+    'access_financial_reports' => 'Access Financial Reports',
     
     // Notifications & Communications
     'manage_notifications' => 'Manage System Notifications',
     'send_announcements' => 'Send Announcements',
     'view_announcements' => 'View Announcements',
+    'send_bulk_communications' => 'Send Bulk Communications',
+    'manage_communication_templates' => 'Manage Communication Templates',
     
-    // Profile & Personal
+    // Profile & Personal Access
     'view_profile' => 'View Own Profile',
     'edit_profile' => 'Edit Own Profile',
     'change_password' => 'Change Own Password',
+    'upload_documents' => 'Upload Personal Documents',
     
     // Parent-specific permissions
     'view_ward_progress' => 'View Ward Progress (Parents)',
     'view_ward_attendance' => 'View Ward Attendance (Parents)',
+    'view_ward_grades' => 'View Ward Grades (Parents)',
+    'communicate_with_faculty' => 'Communicate with Faculty (Parents)',
     
     // Student-specific permissions
     'course_registration' => 'Course Registration (Students)',
     'select_electives' => 'Select Electives (Students)',
     'view_own_grades' => 'View Own Grades (Students)',
     'view_own_attendance' => 'View Own Attendance (Students)',
+    'download_certificates' => 'Download Certificates (Students)',
+    'view_fee_details' => 'View Fee Details (Students)',
+    'apply_for_documents' => 'Apply for Documents (Students)',
     
     // Staff-specific permissions
     'data_entry' => 'Data Entry Operations',
-    'manage_records' => 'Manage Administrative Records'
+    'manage_records' => 'Manage Administrative Records',
+    'process_applications' => 'Process Applications',
+    'verify_documents' => 'Verify Documents',
+    'generate_id_cards' => 'Generate ID Cards',
+    
+    // Examination Management
+    'manage_exam_schedule' => 'Manage Examination Schedule',
+    'conduct_examinations' => 'Conduct Examinations',
+    'manage_exam_results' => 'Manage Examination Results',
+    'publish_results' => 'Publish Examination Results',
+    
+    // Library Management (if applicable)
+    'manage_library' => 'Manage Library Resources',
+    'issue_books' => 'Issue Books',
+    'manage_library_fines' => 'Manage Library Fines',
+    
+    // Finance & Fee Management
+    'manage_fees' => 'Manage Fee Structure',
+    'collect_fees' => 'Collect Fees',
+    'generate_fee_receipts' => 'Generate Fee Receipts',
+    'view_fee_reports' => 'View Fee Reports',
+    
+    // Placement & Career Services
+    'manage_placements' => 'Manage Placement Activities',
+    'coordinate_campus_recruitment' => 'Coordinate Campus Recruitment',
+    'manage_company_relations' => 'Manage Company Relations'
 ];
 
 // Get all roles for listing with enhanced query
@@ -158,7 +210,7 @@ function get_all_roles() {
         $stmt = $pdo->query("
             SELECT r.*, 
                    COUNT(u.id) as user_count,
-                   GROUP_CONCAT(DISTINCT u.username ORDER BY u.username SEPARATOR ', ') as users_sample
+                   GROUP_CONCAT(DISTINCT CONCAT(u.first_name, ' ', u.last_name) ORDER BY u.first_name SEPARATOR ', ') as users_sample
             FROM roles r 
             LEFT JOIN users u ON r.id = u.role_id 
             GROUP BY r.id
@@ -187,7 +239,7 @@ function get_all_roles() {
     }
 }
 
-// Get single role for editing with enhanced query
+// Get single role for editing
 function get_role_by_id($id) {
     global $pdo;
     try {
@@ -273,7 +325,7 @@ function handle_add_role($data) {
         
     } catch (Exception $e) {
         error_log("Add role error: " . $e->getMessage());
-        return ['success' => false, 'message' => 'Database error occurred.'];
+        return ['success' => false, 'message' => 'Database error occurred: ' . $e->getMessage()];
     }
 }
 
@@ -307,6 +359,24 @@ function handle_edit_role($id, $data) {
         $errors[] = "At least one permission must be selected.";
     }
     
+    // For custom roles, validate name if provided
+    if (!$current_role['is_system_role'] && !empty($data['name'])) {
+        if (strlen($data['name']) < 2) {
+            $errors[] = "Role name must be at least 2 characters long.";
+        }
+        
+        if (!preg_match('/^[a-z_]+$/', $data['name'])) {
+            $errors[] = "Role name can only contain lowercase letters and underscores.";
+        }
+        
+        // Check for duplicate name (excluding current role)
+        $stmt = $pdo->prepare("SELECT id FROM roles WHERE name = ? AND id != ?");
+        $stmt->execute([$data['name'], $id]);
+        if ($stmt->fetch()) {
+            $errors[] = "Role name already exists.";
+        }
+    }
+    
     if (!empty($errors)) {
         return ['success' => false, 'message' => implode('<br>', $errors)];
     }
@@ -316,7 +386,7 @@ function handle_edit_role($id, $data) {
         if ($current_role['is_system_role']) {
             $stmt = $pdo->prepare("
                 UPDATE roles 
-                SET description = ?, permissions = ?, status = ?
+                SET description = ?, permissions = ?, status = ?, updated_at = NOW()
                 WHERE id = ?
             ");
             $result = $stmt->execute([
@@ -329,7 +399,7 @@ function handle_edit_role($id, $data) {
             // For custom roles, allow name changes
             $stmt = $pdo->prepare("
                 UPDATE roles 
-                SET name = ?, description = ?, permissions = ?, status = ?
+                SET name = ?, description = ?, permissions = ?, status = ?, updated_at = NOW()
                 WHERE id = ?
             ");
             $result = $stmt->execute([
@@ -352,7 +422,7 @@ function handle_edit_role($id, $data) {
         
     } catch (Exception $e) {
         error_log("Edit role error: " . $e->getMessage());
-        return ['success' => false, 'message' => 'Database error occurred.'];
+        return ['success' => false, 'message' => 'Database error occurred: ' . $e->getMessage()];
     }
 }
 
@@ -400,7 +470,7 @@ function handle_delete_role($id) {
         
     } catch (Exception $e) {
         error_log("Delete role error: " . $e->getMessage());
-        return ['success' => false, 'message' => 'Database error occurred.'];
+        return ['success' => false, 'message' => 'Database error occurred: ' . $e->getMessage()];
     }
 }
 
@@ -466,7 +536,7 @@ if ($action === 'edit' && $role_id) {
         </div>
     </div>
     <div class="card-body">
-        <form method="POST" action="dashboard.php?page=roles&action=add">
+        <form method="POST" action="dashboard.php?page=roles&action=add" id="roleForm">
             <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
             
             <div class="row">
@@ -503,32 +573,46 @@ if ($action === 'edit' && $role_id) {
                 <label class="form-label required">Permissions</label>
                 <div class="card">
                     <div class="card-body">
+                        <!-- Search permissions -->
+                        <div class="mb-3">
+                            <input type="text" id="permissionSearch" class="form-control" placeholder="Search permissions...">
+                        </div>
+                        
                         <!-- Permission categories with enhanced grouping -->
                         <?php 
                         $permission_categories = [
-                            'System Administration' => ['all', 'manage_users', 'manage_roles', 'system_settings', 'view_audit_logs'],
-                            'Academic Structure' => ['manage_college', 'manage_departments', 'manage_programs', 'manage_branches', 'manage_regulations', 'manage_academic_years', 'manage_batches', 'manage_semesters'],
-                            'Student Management' => ['manage_students', 'view_students', 'manage_student_registrations', 'view_student_registrations', 'manage_student_documents', 'view_student_documents'],
-                            'Faculty Management' => ['manage_faculty', 'view_faculty', 'manage_faculty_assignments', 'view_faculty_assignments', 'manage_faculty_qualifications'],
-                            'Course Management' => ['manage_courses', 'view_courses', 'manage_course_prerequisites', 'manage_electives', 'view_electives'],
-                            'Assessment & Marks' => ['manage_assessments', 'grade_students', 'view_grades', 'lock_unlock_marks', 'verify_marks'],
-                            'Attendance' => ['manage_class_schedule', 'mark_attendance', 'view_attendance', 'generate_attendance_reports'],
-                            'Research & Publications' => ['manage_publications', 'view_publications'],
-                            'Reporting & Analytics' => ['view_reports', 'generate_reports', 'view_analytics', 'export_data'],
-                            'Communications' => ['manage_notifications', 'send_announcements', 'view_announcements'],
-                            'Personal Access' => ['view_profile', 'edit_profile', 'change_password'],
-                            'Role-Specific' => ['view_ward_progress', 'view_ward_attendance', 'course_registration', 'select_electives', 'view_own_grades', 'view_own_attendance', 'data_entry', 'manage_records']
+                            'System Administration' => ['all', 'manage_users', 'manage_roles', 'system_settings', 'view_audit_logs', 'manage_system_backups'],
+                            'Institutional Management' => ['manage_college', 'manage_departments', 'manage_programs', 'manage_branches', 'manage_regulations', 'manage_academic_years', 'manage_batches', 'manage_semesters'],
+                            'Student Management' => ['manage_students', 'view_students', 'manage_student_registrations', 'view_student_registrations', 'manage_student_documents', 'view_student_documents', 'approve_student_registrations', 'manage_student_admissions', 'view_student_records'],
+                            'Faculty Management' => ['manage_faculty', 'view_faculty', 'manage_faculty_assignments', 'view_faculty_assignments', 'manage_faculty_qualifications', 'manage_faculty_workload', 'approve_faculty_applications'],
+                            'Course Management' => ['manage_courses', 'view_courses', 'manage_course_prerequisites', 'manage_electives', 'view_electives', 'approve_course_proposals', 'manage_course_syllabus', 'manage_course_schedule'],
+                            'Assessment & Marks' => ['manage_assessments', 'grade_students', 'view_grades', 'lock_unlock_marks', 'verify_marks', 'modify_marks', 'approve_grade_changes', 'generate_transcripts'],
+                            'Attendance' => ['manage_class_schedule', 'mark_attendance', 'view_attendance', 'generate_attendance_reports', 'modify_attendance', 'approve_attendance_changes'],
+                            'Research & Publications' => ['manage_publications', 'view_publications', 'approve_publications', 'manage_research_projects'],
+                            'Reporting & Analytics' => ['view_reports', 'generate_reports', 'view_analytics', 'export_data', 'generate_certificates', 'view_institutional_reports', 'access_financial_reports'],
+                            'Communications' => ['manage_notifications', 'send_announcements', 'view_announcements', 'send_bulk_communications', 'manage_communication_templates'],
+                            'Personal Access' => ['view_profile', 'edit_profile', 'change_password', 'upload_documents'],
+                            'Examination Management' => ['manage_exam_schedule', 'conduct_examinations', 'manage_exam_results', 'publish_results'],
+                            'Finance & Fees' => ['manage_fees', 'collect_fees', 'generate_fee_receipts', 'view_fee_reports'],
+                            'Role-Specific Access' => ['view_ward_progress', 'view_ward_attendance', 'view_ward_grades', 'communicate_with_faculty', 'course_registration', 'select_electives', 'view_own_grades', 'view_own_attendance', 'download_certificates', 'view_fee_details', 'apply_for_documents', 'data_entry', 'manage_records', 'process_applications', 'verify_documents', 'generate_id_cards'],
+                            'Additional Services' => ['manage_library', 'issue_books', 'manage_library_fines', 'manage_placements', 'coordinate_campus_recruitment', 'manage_company_relations']
                         ];
                         
                         foreach ($permission_categories as $category => $perms): ?>
-                        <div class="mb-4">
-                            <h5 class="mb-3"><?php echo htmlspecialchars($category); ?></h5>
-                            <div class="row">
+                        <div class="mb-4 permission-category">
+                            <div class="d-flex align-items-center mb-3">
+                                <h5 class="mb-0 me-3"><?php echo htmlspecialchars($category); ?></h5>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input category-toggle" type="checkbox" data-category="<?php echo strtolower(str_replace([' ', '&'], ['_', 'and'], $category)); ?>">
+                                    <label class="form-check-label text-muted">Select All</label>
+                                </div>
+                            </div>
+                            <div class="row" data-category="<?php echo strtolower(str_replace([' ', '&'], ['_', 'and'], $category)); ?>">
                                 <?php foreach ($perms as $perm): ?>
                                     <?php if (isset($available_permissions[$perm])): ?>
-                                    <div class="col-md-6 col-lg-4">
+                                    <div class="col-md-6 col-lg-4 permission-item">
                                         <label class="form-check">
-                                            <input type="checkbox" name="permissions[]" value="<?php echo $perm; ?>" class="form-check-input"
+                                            <input type="checkbox" name="permissions[]" value="<?php echo $perm; ?>" class="form-check-input permission-checkbox"
                                                    <?php echo (isset($_POST['permissions']) && in_array($perm, $_POST['permissions'])) ? 'checked' : ''; ?>>
                                             <span class="form-check-label">
                                                 <strong><?php echo htmlspecialchars($available_permissions[$perm]); ?></strong>
@@ -585,21 +669,22 @@ if ($action === 'edit' && $role_id) {
         <a href="dashboard.php?page=roles" class="btn btn-secondary">Back to Roles</a>
         
         <?php else: ?>
-        <form method="POST" action="dashboard.php?page=roles&action=edit&id=<?php echo $edit_role['id']; ?>">
+        <form method="POST" action="dashboard.php?page=roles&action=edit&id=<?php echo $edit_role['id']; ?>" id="roleForm">
             <input type="hidden" name="csrf_token" value="<?php echo generate_csrf_token(); ?>">
             
             <div class="row">
                 <div class="col-md-6">
                     <div class="mb-3">
                         <label class="form-label">Role Name</label>
-                        <input type="text" class="form-control" value="<?php echo htmlspecialchars($edit_role['name']); ?>" readonly>
-                        <div class="form-hint">
-                            <?php if ($edit_role['is_system_role']): ?>
-                                System role names cannot be changed.
-                            <?php else: ?>
-                                Role names cannot be changed after creation.
-                            <?php endif; ?>
-                        </div>
+                        <?php if ($edit_role['is_system_role']): ?>
+                            <input type="text" class="form-control" value="<?php echo htmlspecialchars($edit_role['name']); ?>" readonly>
+                            <div class="form-hint">System role names cannot be changed.</div>
+                        <?php else: ?>
+                            <input type="text" name="name" class="form-control" 
+                                   pattern="[a-z_]+"
+                                   value="<?php echo htmlspecialchars($_POST['name'] ?? $edit_role['name']); ?>">
+                            <div class="form-hint">Use lowercase letters and underscores only.</div>
+                        <?php endif; ?>
                     </div>
                 </div>
                 <div class="col-md-6">
@@ -628,16 +713,27 @@ if ($action === 'edit' && $role_id) {
                 
                 <div class="card">
                     <div class="card-body">
+                        <!-- Search permissions -->
+                        <div class="mb-3">
+                            <input type="text" id="permissionSearch" class="form-control" placeholder="Search permissions...">
+                        </div>
+                        
                         <!-- Permission categories -->
                         <?php foreach ($permission_categories as $category => $perms): ?>
-                        <div class="mb-4">
-                            <h5 class="mb-3"><?php echo htmlspecialchars($category); ?></h5>
-                            <div class="row">
+                        <div class="mb-4 permission-category">
+                            <div class="d-flex align-items-center mb-3">
+                                <h5 class="mb-0 me-3"><?php echo htmlspecialchars($category); ?></h5>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input category-toggle" type="checkbox" data-category="<?php echo strtolower(str_replace([' ', '&'], ['_', 'and'], $category)); ?>">
+                                    <label class="form-check-label text-muted">Select All</label>
+                                </div>
+                            </div>
+                            <div class="row" data-category="<?php echo strtolower(str_replace([' ', '&'], ['_', 'and'], $category)); ?>">
                                 <?php foreach ($perms as $perm): ?>
                                     <?php if (isset($available_permissions[$perm])): ?>
-                                    <div class="col-md-6 col-lg-4">
+                                    <div class="col-md-6 col-lg-4 permission-item">
                                         <label class="form-check">
-                                            <input type="checkbox" name="permissions[]" value="<?php echo $perm; ?>" class="form-check-input"
+                                            <input type="checkbox" name="permissions[]" value="<?php echo $perm; ?>" class="form-check-input permission-checkbox"
                                                    <?php echo in_array($perm, $selected_permissions) ? 'checked' : ''; ?>>
                                             <span class="form-check-label">
                                                 <strong><?php echo htmlspecialchars($available_permissions[$perm]); ?></strong>
@@ -776,8 +872,8 @@ if ($action === 'edit' && $role_id) {
                                     <div class="text-muted small mt-1">
                                         <?php 
                                         $users = explode(', ', $role['users_sample']);
-                                        echo htmlspecialchars(implode(', ', array_slice($users, 0, 3)));
-                                        if (count($users) > 3) echo '...';
+                                        echo htmlspecialchars(implode(', ', array_slice($users, 0, 2)));
+                                        if (count($users) > 2) echo '...';
                                         ?>
                                     </div>
                                 <?php endif; ?>
@@ -946,15 +1042,16 @@ function confirmDeleteRole(roleId, roleName) {
     modal.show();
 }
 
-// Enhanced form validation
+// Enhanced form validation and functionality
 document.addEventListener('DOMContentLoaded', function() {
-    const forms = document.querySelectorAll('form');
-    forms.forEach(form => {
-        form.addEventListener('submit', function(e) {
+    const roleForm = document.getElementById('roleForm');
+    if (roleForm) {
+        // Form validation
+        roleForm.addEventListener('submit', function(e) {
             // Check if at least one permission is selected
-            const permissionCheckboxes = form.querySelectorAll('input[name="permissions[]"]');
+            const permissionCheckboxes = roleForm.querySelectorAll('input[name="permissions[]"]');
             if (permissionCheckboxes.length > 0) {
-                const checkedPermissions = form.querySelectorAll('input[name="permissions[]"]:checked');
+                const checkedPermissions = roleForm.querySelectorAll('input[name="permissions[]"]:checked');
                 if (checkedPermissions.length === 0) {
                     e.preventDefault();
                     showMessage('danger', 'Please select at least one permission for this role.');
@@ -963,7 +1060,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             // Validate required fields
-            const requiredFields = form.querySelectorAll('[required]');
+            const requiredFields = roleForm.querySelectorAll('[required]');
             let isValid = true;
             
             requiredFields.forEach(field => {
@@ -980,12 +1077,76 @@ document.addEventListener('DOMContentLoaded', function() {
                 showMessage('danger', 'Please fill in all required fields.');
             }
         });
-    });
+    }
     
-    // Initialize tooltips
-    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-    tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl);
+    // Permission search functionality
+    const permissionSearch = document.getElementById('permissionSearch');
+    if (permissionSearch) {
+        permissionSearch.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const permissionItems = document.querySelectorAll('.permission-item');
+            const categories = document.querySelectorAll('.permission-category');
+            
+            permissionItems.forEach(item => {
+                const text = item.textContent.toLowerCase();
+                const shouldShow = text.includes(searchTerm);
+                item.style.display = shouldShow ? 'block' : 'none';
+            });
+            
+            // Hide categories that have no visible permissions
+            categories.forEach(category => {
+                const visibleItems = category.querySelectorAll('.permission-item[style*="display: block"], .permission-item:not([style*="display: none"])');
+                category.style.display = visibleItems.length > 0 ? 'block' : 'none';
+            });
+        });
+    }
+    
+    // Category toggle functionality
+    const categoryToggles = document.querySelectorAll('.category-toggle');
+    categoryToggles.forEach(toggle => {
+        const categoryName = toggle.dataset.category;
+        const categoryDiv = document.querySelector(`[data-category="${categoryName}"]`);
+        
+        if (categoryDiv) {
+            const checkboxes = categoryDiv.querySelectorAll('.permission-checkbox');
+            
+            // Set initial state of toggle based on selected checkboxes
+            const checkedCount = categoryDiv.querySelectorAll('.permission-checkbox:checked').length;
+            const totalCount = checkboxes.length;
+            
+            if (checkedCount === totalCount && totalCount > 0) {
+                toggle.checked = true;
+            } else if (checkedCount > 0) {
+                toggle.indeterminate = true;
+            }
+            
+            // Handle toggle change
+            toggle.addEventListener('change', function() {
+                checkboxes.forEach(checkbox => {
+                    checkbox.checked = this.checked;
+                });
+                this.indeterminate = false;
+            });
+            
+            // Update toggle state when individual checkboxes change
+            checkboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    const checkedCount = categoryDiv.querySelectorAll('.permission-checkbox:checked').length;
+                    const totalCount = checkboxes.length;
+                    
+                    if (checkedCount === 0) {
+                        toggle.checked = false;
+                        toggle.indeterminate = false;
+                    } else if (checkedCount === totalCount) {
+                        toggle.checked = true;
+                        toggle.indeterminate = false;
+                    } else {
+                        toggle.checked = false;
+                        toggle.indeterminate = true;
+                    }
+                });
+            });
+        }
     });
     
     // Handle "select all" functionality for full access permission
@@ -999,9 +1160,17 @@ document.addEventListener('DOMContentLoaded', function() {
                     cb.checked = false;
                     cb.disabled = true;
                 });
+                // Also disable category toggles
+                categoryToggles.forEach(toggle => {
+                    toggle.checked = false;
+                    toggle.disabled = true;
+                });
             } else {
                 otherCheckboxes.forEach(cb => {
                     cb.disabled = false;
+                });
+                categoryToggles.forEach(toggle => {
+                    toggle.disabled = false;
                 });
             }
         });
@@ -1011,19 +1180,49 @@ document.addEventListener('DOMContentLoaded', function() {
             otherCheckboxes.forEach(cb => {
                 cb.disabled = true;
             });
+            categoryToggles.forEach(toggle => {
+                toggle.disabled = true;
+            });
         }
     }
+    
+    // Initialize tooltips
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+    
+    // Add input event listeners to remove invalid class when user starts typing
+    const inputs = document.querySelectorAll('input[required], select[required], textarea[required]');
+    inputs.forEach(input => {
+        input.addEventListener('input', function() {
+            if (this.value.trim()) {
+                this.classList.remove('is-invalid');
+            }
+        });
+    });
 });
 
 // Enhanced message display function
 function showMessage(type, message) {
+    const existingMessages = document.querySelectorAll('.alert.auto-message');
+    existingMessages.forEach(msg => msg.remove());
+    
     const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+    alertDiv.className = `alert alert-${type} alert-dismissible auto-message fade show`;
+    alertDiv.style.cssText = `
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        z-index: 9999;
+        min-width: 300px;
+        max-width: 500px;
+    `;
     alertDiv.innerHTML = `
         <div class="d-flex">
             <div class="me-2">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
-                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${type === 'success' ? 'M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z' : 'M12 9v4M12 17h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z'}"/>
+                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${type === 'success' ? 'M9 12l2 2 4-4M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z' : type === 'info' ? 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z' : 'M12 9v4M12 17h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z'}"/>
                 </svg>
             </div>
             <div>${message}</div>
@@ -1031,16 +1230,31 @@ function showMessage(type, message) {
         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     `;
     
-    const container = document.querySelector('.page-body .container-fluid');
-    if (container) {
-        container.insertBefore(alertDiv, container.firstChild);
-        
-        // Auto-dismiss after 5 seconds
-        setTimeout(() => {
-            if (alertDiv && alertDiv.parentNode) {
-                alertDiv.remove();
-            }
-        }, 5000);
-    }
+    document.body.appendChild(alertDiv);
+    
+    setTimeout(() => {
+        if (alertDiv && alertDiv.parentNode) {
+            alertDiv.classList.remove('show');
+            setTimeout(() => alertDiv.remove(), 150);
+        }
+    }, 5000);
 }
+
+// Auto-hide alerts
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(function() {
+        const alerts = document.querySelectorAll('.alert:not(.auto-message)');
+        alerts.forEach(function(alert) {
+            if (alert.classList.contains('alert-dismissible')) {
+                alert.style.transition = 'opacity 0.5s';
+                alert.style.opacity = '0';
+                setTimeout(function() {
+                    if (alert.parentNode) {
+                        alert.remove();
+                    }
+                }, 500);
+            }
+        });
+    }, 5000);
+});
 </script>
