@@ -1,5 +1,5 @@
 <?php
-// dashboard.php - Main dashboard with modular structure
+// dashboard.php - Main dashboard with modular structure and enhanced navigation
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 
@@ -29,7 +29,8 @@ $allowed_pages = [
     'courses',
     'reports',
     'settings',
-    'users'
+    'users',
+    'roles'
 ];
 
 // Validate page parameter
@@ -67,7 +68,8 @@ $page_titles = [
     'courses' => 'Courses Management',
     'reports' => 'Reports',
     'settings' => 'Settings',
-    'users' => 'User Management'
+    'users' => 'User Management',
+    'roles' => 'Role Management'
 ];
 
 $page_title = $page_titles[$current_page] ?? 'Dashboard';

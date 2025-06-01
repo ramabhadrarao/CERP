@@ -7,6 +7,7 @@
     <link href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta17/dist/css/tabler.min.css" rel="stylesheet"/>
     <link href="https://cdn.jsdelivr.net/npm/@tabler/icons@latest/icons-sprite.svg" rel="stylesheet"/>
     <style>
+        /* Basic Brand Styling */
         .navbar-brand-image {
             width: 32px;
             height: 32px;
@@ -16,14 +17,8 @@
             align-items: center;
             justify-content: center;
         }
-        .sidebar-nav .nav-link {
-            border-radius: 8px;
-            margin: 2px 8px;
-        }
-        .sidebar-nav .nav-link.active {
-            background: #206bc4;
-            color: white;
-        }
+        
+        /* User Avatar Styles */
         .user-avatar {
             width: 32px;
             height: 32px;
@@ -47,6 +42,8 @@
             font-weight: 600;
             font-size: 2rem;
         }
+        
+        /* Badge and Card Styles */
         .role-badge {
             font-size: 0.75rem;
             padding: 2px 8px;
@@ -62,72 +59,272 @@
             min-height: calc(100vh - 200px);
         }
         
-        /* Sidebar Minimize/Maximize Styles */
+        /* Enhanced Sidebar Styles with Better Transitions */
         #sidebar {
-            transition: all 0.3s ease;
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
             width: 280px;
+            z-index: 1030;
+            background: white;
+            border-right: 1px solid #e6e7e9;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-y: auto;
+            overflow-x: hidden;
+            box-shadow: 2px 0 8px rgba(0, 0, 0, 0.05);
         }
         
+        /* Sidebar Minimized State - FIXED */
         #sidebar.minimized {
             width: 70px;
         }
         
+        /* Hide text elements when minimized - IMPROVED */
         #sidebar.minimized .nav-link-title,
-        #sidebar.minimized .sidebar-title,
-        #sidebar.minimized .dropdown-menu {
-            display: none;
-        }
-        
-        #sidebar.minimized .nav-link {
-            justify-content: center;
-            padding-left: 1rem;
-            padding-right: 1rem;
-        }
-        
-        #sidebar.minimized .nav-link-icon {
-            margin-right: 0;
-        }
-        
-        #sidebar.minimized .dropdown-toggle::after {
-            display: none;
+        #sidebar.minimized .sidebar-title {
+            display: none !important;
+            visibility: hidden;
         }
         
         #sidebar.minimized .hr-text {
-            display: none;
+            display: none !important;
         }
         
-        .sidebar-minimized-toggle {
-            position: absolute;
-            top: 15px;
-            right: -35px;
-            z-index: 1000;
+        /* Fix nav-link layout in minimized state */
+        #sidebar.minimized .nav-link {
+            justify-content: center !important;
+            padding: 0.75rem 1rem !important;
+            margin: 2px 8px !important;
+            position: relative;
+            min-height: 44px;
+            display: flex !important;
+            align-items: center !important;
         }
         
+        /* Ensure icons are centered and visible */
+        #sidebar.minimized .nav-link-icon {
+            margin-right: 0 !important;
+            margin-left: 0 !important;
+            width: 24px;
+            height: 24px;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+        
+        #sidebar.minimized .nav-link-icon svg {
+            width: 20px !important;
+            height: 20px !important;
+        }
+        
+        /* Hide dropdown arrows when minimized */
+        #sidebar.minimized .dropdown-toggle::after {
+            display: none !important;
+        }
+        
+        /* Fix dropdown menu positioning in minimized sidebar */
+        #sidebar.minimized .dropdown-menu {
+            position: fixed !important;
+            left: 70px !important;
+            top: auto !important;
+            margin: 0 !important;
+            border: 1px solid #e6e7e9;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+            z-index: 1050 !important;
+            min-width: 200px;
+            border-radius: 8px;
+        }
+        
+        /* Show dropdown on hover for minimized sidebar */
+        #sidebar.minimized .nav-item.dropdown:hover .dropdown-menu {
+            display: block !important;
+        }
+        
+        /* Tooltip-like behavior for minimized sidebar - IMPROVED */
+        #sidebar.minimized .nav-link[title]:hover::after {
+            content: attr(title);
+            position: fixed;
+            left: 75px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+            z-index: 1060;
+            pointer-events: none;
+            top: 50%;
+            transform: translateY(-50%);
+            animation: tooltipFadeIn 0.2s ease;
+        }
+        
+        @keyframes tooltipFadeIn {
+            from { opacity: 0; transform: translateY(-50%) translateX(-5px); }
+            to { opacity: 1; transform: translateY(-50%) translateX(0); }
+        }
+        
+        /* FIXED: Page Wrapper with proper space utilization */
         .page-wrapper {
             margin-left: 280px;
-            transition: margin-left 0.3s ease;
+            min-height: 100vh;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            width: calc(100vw - 280px);
         }
         
         .page-wrapper.sidebar-minimized {
-            margin-left: 70px;
+            margin-left: 70px !important;
+            width: calc(100vw - 70px) !important;
         }
         
-        /* Mobile responsiveness */
-        @media (max-width: 768px) {
+        /* FIXED: Top Header positioning */
+        .navbar.sticky-top {
+            position: fixed;
+            top: 0;
+            right: 0;
+            left: 280px;
+            z-index: 1020;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid #e6e7e9;
+            height: 60px;
+            width: calc(100vw - 280px);
+        }
+        
+        .sidebar-minimized .navbar.sticky-top {
+            left: 70px !important;
+            width: calc(100vw - 70px) !important;
+        }
+        
+        /* Enhanced Page Content */
+        .page-header {
+            margin-top: 60px;
+            padding: 1.5rem 0;
+            transition: all 0.3s ease;
+        }
+        
+        .page-body {
+            padding-top: 0;
+            padding-bottom: 2rem;
+            transition: all 0.3s ease;
+        }
+        
+        /* FIXED: Container adjustments for better space usage */
+        .container-fluid {
+            padding-left: 1.5rem;
+            padding-right: 1.5rem;
+            transition: all 0.3s ease;
+            width: 100%;
+            max-width: none;
+        }
+        
+        /* Enhanced Cards and Tables for better space utilization */
+        .card {
+            transition: all 0.3s ease;
+            margin-bottom: 1.5rem;
+        }
+        
+        .table-responsive {
+            transition: all 0.3s ease;
+            border-radius: 8px;
+            width: 100%;
+        }
+        
+        /* Responsive Grid Adjustments - IMPROVED */
+        .row-deck .col,
+        .row-cards .col {
+            transition: all 0.3s ease;
+        }
+        
+        /* Better space utilization when sidebar is minimized */
+        @media (min-width: 992px) {
+            .sidebar-minimized .col-lg-3 {
+                flex: 0 0 auto;
+                width: 24% !important;
+                max-width: 24%;
+            }
+            
+            .sidebar-minimized .col-lg-4 {
+                flex: 0 0 auto;
+                width: 32% !important;
+                max-width: 32%;
+            }
+            
+            .sidebar-minimized .col-lg-6 {
+                flex: 0 0 auto;
+                width: 49% !important;
+                max-width: 49%;
+            }
+            
+            .sidebar-minimized .col-lg-8 {
+                flex: 0 0 auto;
+                width: 66% !important;
+                max-width: 66%;
+            }
+            
+            .sidebar-minimized .col-lg-9 {
+                flex: 0 0 auto;
+                width: 74% !important;
+                max-width: 74%;
+            }
+            
+            .sidebar-minimized .col-lg-12 {
+                flex: 0 0 auto;
+                width: 100% !important;
+                max-width: 100%;
+            }
+        }
+        
+        /* Sidebar Expand Button */
+        .sidebar-minimized-toggle {
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            z-index: 1035;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            opacity: 0;
+            transform: scale(0.8);
+        }
+        
+        .sidebar-minimized .sidebar-minimized-toggle {
+            left: 20px;
+            opacity: 1;
+            transform: scale(1);
+        }
+        
+        /* Mobile Responsive Styles */
+        @media (max-width: 992px) {
             #sidebar {
-                width: 280px;
-                position: fixed;
                 left: -280px;
                 z-index: 1050;
-                height: 100vh;
+                box-shadow: none;
             }
             
             #sidebar.mobile-open {
                 left: 0;
+                box-shadow: 2px 0 16px rgba(0, 0, 0, 0.1);
             }
             
             .page-wrapper {
-                margin-left: 0;
+                margin-left: 0 !important;
+                width: 100vw !important;
+            }
+            
+            .navbar.sticky-top {
+                left: 0 !important;
+                width: 100vw !important;
+            }
+            
+            .page-header {
+                margin-top: 60px;
+                padding: 1rem 0;
+            }
+            
+            .container-fluid {
+                padding-left: 1rem;
+                padding-right: 1rem;
             }
             
             .sidebar-overlay {
@@ -138,58 +335,239 @@
                 height: 100%;
                 background: rgba(0, 0, 0, 0.5);
                 z-index: 1040;
-                display: none;
+                opacity: 0;
+                visibility: hidden;
+                transition: all 0.3s ease;
             }
             
             .sidebar-overlay.show {
-                display: block;
+                opacity: 1;
+                visibility: visible;
+            }
+            
+            .sidebar-minimized-toggle {
+                display: none !important;
+            }
+            
+            /* Reset grid on mobile */
+            .col-lg-3, .col-lg-4, .col-lg-6, .col-lg-8, .col-lg-9, .col-lg-12 {
+                width: 100% !important;
+                max-width: 100% !important;
             }
         }
         
-        /* Smooth hover effects */
-        .nav-link {
-            transition: all 0.2s ease;
+        /* Navigation Improvements */
+        .sidebar-nav {
+            padding: 1rem 0;
         }
         
-        .nav-link:hover {
+        .sidebar-nav .nav-link {
+            border-radius: 8px;
+            margin: 2px 8px;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            min-height: 44px;
+        }
+        
+        .sidebar-nav .nav-link-icon {
+            margin-right: 0.75rem;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        
+        .sidebar-nav .nav-link-icon svg {
+            width: 20px;
+            height: 20px;
+        }
+        
+        .sidebar-nav .nav-link-title {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .sidebar-nav .nav-link.active {
+            background: linear-gradient(135deg, #206bc4, #1a5aa0);
+            color: white;
+            box-shadow: 0 2px 8px rgba(32, 107, 196, 0.3);
+        }
+        
+        .sidebar-nav .nav-link:hover:not(.active) {
+            background-color: rgba(32, 107, 196, 0.1);
+            transform: translateX(4px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Dropdown Menu Improvements */
+        .dropdown-menu {
+            border: 1px solid #e6e7e9;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            padding: 0.5rem 0;
+            margin-top: 0.25rem;
+            min-width: 200px;
+        }
+        
+        .dropdown-item {
+            padding: 0.5rem 1rem;
+            transition: all 0.2s ease;
+            border-radius: 4px;
+            margin: 0 0.25rem;
+            display: flex;
+            align-items: center;
+        }
+        
+        .dropdown-item.active {
+            background-color: #206bc4;
+            color: white;
+        }
+        
+        .dropdown-item:hover:not(.active) {
             background-color: rgba(32, 107, 196, 0.1);
             transform: translateX(2px);
         }
         
-        #sidebarToggle {
+        /* Toggle Button Styles */
+        #sidebarToggle, #sidebarClose {
             border: none;
             background: transparent;
             color: #6c757d;
-            transition: all 0.2s ease;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 6px;
+            padding: 0.375rem;
+            position: relative;
+            overflow: hidden;
         }
         
-        #sidebarToggle:hover {
+        #sidebarToggle:hover, #sidebarClose:hover {
             color: #206bc4;
             background: rgba(32, 107, 196, 0.1);
+            transform: scale(1.05);
+        }
+        
+        /* Brand adjustments for minimized state */
+        #sidebar.minimized .navbar-brand {
+            justify-content: center;
+            padding: 1rem 0;
+        }
+        
+        #sidebar.minimized .navbar-brand a {
+            justify-content: center;
+        }
+        
+        /* Scrollbar Styling */
+        #sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        #sidebar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        #sidebar::-webkit-scrollbar-thumb {
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 3px;
+            transition: background 0.2s ease;
+        }
+        
+        #sidebar::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 0, 0, 0.2);
+        }
+        
+        /* Performance optimizations */
+        .page-wrapper,
+        #sidebar,
+        .navbar.sticky-top {
+            will-change: transform, width, left, margin-left;
+        }
+        
+        /* Ensure proper stacking and visibility */
+        #sidebar * {
+            box-sizing: border-box;
+        }
+        
+        /* Force proper display for minimized icons */
+        #sidebar.minimized .nav-item {
+            display: block !important;
+        }
+        
+        #sidebar.minimized .nav-link {
+            display: flex !important;
+            visibility: visible !important;
+        }
+        
+        /* Better spacing for minimized state */
+        #sidebar.minimized .navbar-brand {
+            margin-bottom: 0.5rem;
+        }
+        
+        #sidebar.minimized .sidebar-nav {
+            padding-top: 0.5rem;
+        }
+        
+        /* Enhanced Stats Cards */
+        .stats-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid #e6e7e9;
+        }
+        
+        .stats-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+            border-color: #206bc4;
+        }
+        
+        /* Focus states for accessibility */
+        .nav-link:focus,
+        .dropdown-item:focus,
+        #sidebarToggle:focus,
+        #sidebarClose:focus {
+            outline: 2px solid #206bc4;
+            outline-offset: 2px;
+        }
+        
+        /* Reduced motion for users who prefer it */
+        @media (prefers-reduced-motion: reduce) {
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
         }
     </style>
 </head>
 <body>
     <div class="page">
         <!-- Top Header -->
-        <header class="navbar navbar-expand-md navbar-light sticky-top">
+        <header class="navbar navbar-expand-md navbar-light">
             <div class="container-fluid">
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu">
+                <button class="navbar-toggler d-lg-none" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu" onclick="toggleMobileSidebar()">
                     <span class="navbar-toggler-icon"></span>
                 </button>
                 
-                <div class="navbar-brand">
+                <div class="navbar-brand d-lg-none">
                     <a href="dashboard.php" class="d-flex align-items-center text-decoration-none">
                         <div class="navbar-brand-image me-2">
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="white" viewBox="0 0 24 24">
                                 <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M22 9L12 5 2 9l10 4 10-4zM6 10.5v7c0 2.5 2.5 4.5 6 4.5s6-2 6-4.5v-7"/>
                             </svg>
                         </div>
-                        <span class="d-none d-lg-inline">School Management</span>
+                        <span>School Management</span>
                     </a>
                 </div>
                 
-                <div class="navbar-nav flex-row order-md-last">
+                <div class="navbar-nav flex-row order-md-last ms-auto">
                     <!-- Notifications -->
                     <div class="nav-item dropdown me-3">
                         <a href="#" class="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown">
